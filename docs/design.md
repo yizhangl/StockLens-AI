@@ -826,7 +826,7 @@ Spring Boot REST API
 | Frontend language | TypeScript |
 | Frontend framework | React |
 | Frontend build tool | Vite |
-| Charting | Recharts or Apache ECharts |
+| Charting | Recharts |
 | HTTP client | Fetch API or Axios |
 | Backend language | Java 21 |
 | Backend framework | Spring Boot |
@@ -846,7 +846,7 @@ Spring Boot REST API
 | Deployment | Render or Railway |
 | Development assistant | Codex |
 
-The final chart library should be selected after a quick prototype. Recharts is simpler for the MVP; ECharts is more flexible if chart interactions become more advanced.
+Recharts is the selected charting library for the MVP. It integrates naturally with React, supports the required responsive line charts and custom tooltips, and keeps implementation complexity lower than a more feature-heavy charting platform. A different chart library should only be considered later if the product requires substantially more advanced interactions or visualization types.
 
 ---
 
