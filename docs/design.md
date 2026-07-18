@@ -1,188 +1,266 @@
 # StockLens AI — System Design Document
 
-**Status:** Draft  
-**Version:** 1.0  
+**Status:** Approved for MVP implementation  
+**Version:** 2.0  
 **Date:** July 2026  
 **Author:** Licy Li
 
-## 1. Overview
+---
 
-StockLens AI is a backend-focused stock research platform that combines company fundamentals, valuation metrics, recent news, and AI-generated research summaries.
+## 1. Executive Summary
 
-A user provides a stock ticker such as `AAPL` or `MSFT`. The system retrieves relevant financial and news data, normalizes and stores the results, and generates a structured research brief containing:
+StockLens AI is a full-stack, AI-assisted stock research application that lets a user compare two publicly traded companies in one screen.
 
-- Company summary
-- Key financial metrics
-- Recent developments
-- Potential opportunities
-- Potential risks
-- Supporting sources
+The user enters two ticker symbols, such as `AAPL` and `MSFT`. The system aggregates company profiles, current market data, historical prices, valuation metrics, profitability metrics, growth metrics, financial-health indicators, and recent news. It then generates a structured, source-grounded AI comparison brief.
 
-The project is designed as a portfolio-quality backend application rather than a production trading system.
+The final MVP experience is a single comparison dashboard containing:
 
-The primary engineering goals are to demonstrate:
+1. Two-stock search
+2. Side-by-side company summary cards
+3. AI comparison brief
+4. Historical price-performance chart
+5. Grouped financial metrics
+6. Recent company developments
+7. Data-source, freshness, and disclaimer information
+
+The application is a research and educational tool. It does not execute trades, predict prices, or provide personalized investment advice.
+
+The project is also designed as a portfolio-quality software engineering project that demonstrates:
 
 - Java and Spring Boot backend development
 - REST API design
-- Relational data modeling with PostgreSQL
-- External API integration
+- React and TypeScript frontend development
+- External financial and news API integration
+- PostgreSQL data modeling
 - Redis caching
-- Structured LLM integration
+- Structured OpenAI integration through Spring AI
+- Source-grounded AI output and validation
 - Unit and integration testing
-- Database migrations
-- CI and containerized development
+- Docker-based local development
+- Flyway migrations
+- OpenAPI documentation
+- GitHub Actions CI
+
+---
 
 ## 2. Problem Statement
 
-Stock research information is often distributed across several sources.
-
-A user may need to separately review:
+Stock research is fragmented across company-profile pages, financial-data sites, price charts, news providers, and analyst commentary. A user who wants to compare two companies often needs to open several browser tabs and manually reconcile:
 
 - Company descriptions
-- Financial ratios
-- Valuation metrics
-- Recent news
-- Earnings developments
-- Analyst commentary
+- Market capitalization
+- Valuation multiples
+- Profitability
+- Growth rates
+- Balance-sheet indicators
+- Historical price performance
+- Recent news and company developments
 
-This creates unnecessary context switching and makes it difficult to quickly compare companies.
+This creates unnecessary context switching and makes quick, high-level comparison difficult.
 
-StockLens AI provides a single API that aggregates this information and generates a concise, source-grounded research brief.
+StockLens AI solves this problem by providing one comparison workflow that:
 
-The platform is not intended to provide personalized investment advice or predict stock prices.
+1. Retrieves data from external providers
+2. Normalizes inconsistent provider formats
+3. Stores durable data in PostgreSQL
+4. Caches frequently reused results in Redis
+5. Presents a side-by-side comparison in a clear frontend
+6. Generates an AI brief grounded only in supplied financial data and news
 
-## 3. Project Goals
+---
 
-### 3.1 Product Goals
+## 3. Product Vision
 
-The MVP should allow a user to:
+StockLens AI should feel like a modern research assistant rather than a trading terminal.
 
-1.  Search for a publicly traded company using its ticker.
-2.  View basic company and financial information.
-3.  View recent news associated with the company.
-4.  Generate a structured AI research brief.
-5.  Refresh stale company or news data.
-6.  Retrieve previously generated reports without repeating expensive external calls.
+The product should help a user answer:
 
-### 3.2 Engineering Goals
+- What does each company do?
+- How do their valuations differ?
+- Which company currently has stronger profitability or growth metrics?
+- How have the stocks performed over the selected period?
+- What recent developments may matter?
+- What are the main strengths, trade-offs, and risks shown by the available data?
+
+The product should not answer:
+
+- Which stock should I buy?
+- What price will the stock reach?
+- How should I allocate my personal portfolio?
+
+---
+
+## 4. Goals
+
+### 4.1 Product Goals
+
+The MVP must allow a user to:
+
+1. Enter and validate two stock ticker symbols.
+2. Retrieve a side-by-side company overview.
+3. Compare selected financial metrics by category.
+4. Compare historical stock performance over a selected period.
+5. Read recent news for each company.
+6. Generate a structured AI comparison brief.
+7. See the data sources and update timestamps used in the comparison.
+8. Refresh stale comparison data.
+9. Reuse previously retrieved or generated data when it is still fresh.
+
+### 4.2 Engineering Goals
 
 The project should demonstrate:
 
-- Clear controller, service, repository, and client boundaries
-- Reliable external API integration
-- Persistent relational data storage
-- Explicit cache behavior
-- Structured and validated AI output
+- Clear frontend, controller, service, repository, client, and domain boundaries
+- A modular monolith rather than unnecessary microservices
+- Provider-independent financial and news integrations
+- Durable storage in PostgreSQL
+- Explicit cache-aside behavior in Redis
+- Typed and validated AI output
+- Controlled failure handling for third-party services
 - Reproducible local development
-- Automated tests and CI
-- Documented technical decisions and trade-offs
+- Automated testing and CI
+- Documented trade-offs
 
-### 3.3 Portfolio Goals
-
-The repository should be easy for a recruiter or interviewer to understand.
+### 4.3 Portfolio Goals
 
 A reviewer should be able to:
 
-- Read the architecture in the README
-- Start dependencies using Docker Compose
-- Run the application locally
-- Explore endpoints using Swagger UI
+- Understand the product in under 30 seconds from the screenshot and README
+- Start dependencies with Docker Compose
+- Run the backend and frontend locally
+- Explore backend endpoints through Swagger UI
 - Run automated tests
-- Understand the design decisions
-- Review a clear Git commit history
+- Understand why PostgreSQL, Redis, Spring AI, Flyway, and Testcontainers are used
+- Review a clean Git history organized by milestone
 
-## 4. Non-Goals
+---
 
-The following features are intentionally excluded from the MVP:
+## 5. Non-Goals
 
-- Real-time stock trading
-- Brokerage account integration
+The following are outside the MVP:
+
+- Real-time trading
+- Brokerage integration
 - Portfolio management
-- Personalized financial advice
+- Personalized investment recommendations
 - Price prediction
-- Technical chart analysis
-- Intraday market data
-- Complex recommendation algorithms
-- Multi-agent workflows
-- Retrieval-augmented generation with a vector database
-- Kubernetes deployment
-- Microservice architecture
-- Kafka or RabbitMQ
-- Elasticsearch
-- User authentication
+- Technical-indicator analysis
+- Intraday or tick-level market data
+- Options or derivatives analysis
+- Social sentiment analysis
+- User accounts and authentication
+- Saved watchlists
 - Payment processing
-- Mobile application
+- Push notifications
+- Native mobile applications
+- Multi-agent AI workflows
+- Vector databases or RAG pipelines
+- Kafka, RabbitMQ, or background-job infrastructure
+- Elasticsearch
+- Kubernetes
+- Microservices
 
-These features may be considered later but should not block completion of the first working version.
+The navigation may visually include a future `Watchlist` item, but it is not required for MVP completion.
 
-## 5. Target Users
+---
 
-### Primary User
+## 6. Target Users
 
-A student, retail investor, or job interviewer who wants to quickly inspect a public company.
+### 6.1 Primary Users
 
-### Example Use Case
+- Students learning financial analysis
+- Retail investors performing lightweight company research
+- Software recruiters and interviewers reviewing the project
+- Developers interested in a complete Spring Boot and AI integration example
 
-The user requests:
+### 6.2 Primary Use Case
 
-    GET /api/v1/stocks/AAPL/research
+A user compares `AAPL` and `MSFT`.
 
-The system returns:
+The application returns:
 
-- Company profile
-- Selected valuation metrics
-- Recent news
-- AI-generated summary
-- Opportunities
-- Risks
-- Source references
+- Both company profiles
+- Current prices and daily changes
+- Key financial metrics
+- Historical return series
+- Recent news for each company
+- A structured AI comparison brief
+- Supporting source references
 - Data timestamps
 
-## 6. Core User Stories
+---
 
-### US-1: Retrieve Company Overview
+## 7. Core User Stories
 
-As a user, I want to enter a stock ticker and retrieve basic company information so that I can understand what the company does.
+### US-1: Compare Two Companies
 
-### US-2: View Financial Metrics
+As a user, I want to enter two ticker symbols so that I can compare two companies in one view.
 
-As a user, I want to see selected financial and valuation metrics so that I can evaluate the company at a high level.
+### US-2: View Company Summaries
 
-### US-3: View Recent News
+As a user, I want to see the company name, sector, price, market cap, valuation, revenue, and short description so that I can quickly understand each business.
 
-As a user, I want to retrieve recent company news so that I can understand recent developments.
+### US-3: Compare Price Performance
 
-### US-4: Generate Research Brief
+As a user, I want to compare historical performance over `1M`, `6M`, `1Y`, `5Y`, or `MAX` so that I can understand how the stocks performed over the same period.
 
-As a user, I want the platform to generate a structured research brief so that I can quickly identify important opportunities and risks.
+### US-4: Compare Financial Metrics
 
-### US-5: Reuse Existing Results
+As a user, I want key metrics grouped by valuation, profitability, growth, and financial health so that the data is easier to scan.
 
-As a user, I want repeated requests to return quickly so that I do not need to wait for the same data to be fetched and generated again.
+### US-5: Read Recent Developments
 
-### US-6: Refresh Stale Data
+As a user, I want recent company news with source and date information so that I can understand current developments.
 
-As a user, I want to explicitly refresh stock data when the stored information is outdated.
+### US-6: Read an AI Comparison Brief
 
-## 7. Functional Requirements
+As a user, I want a concise AI-generated summary of the companies’ relative strengths and risks so that I do not need to interpret every metric manually.
 
-### FR-1: Ticker Validation
+### US-7: Verify AI Claims
+
+As a user, I want the AI brief to identify its supporting financial data and news sources so that I can verify its claims.
+
+### US-8: Reuse Fresh Results
+
+As a user, I want repeated comparisons to load quickly when the underlying data has not changed.
+
+### US-9: Refresh Data
+
+As a user, I want to refresh stale data so that the comparison reflects the latest data available from configured providers.
+
+---
+
+## 8. Functional Requirements
+
+### FR-1: Ticker Input and Validation
 
 The system must:
 
+- Accept exactly two tickers for a comparison
+- Trim whitespace
 - Normalize tickers to uppercase
-- Remove leading and trailing whitespace
-- Reject blank tickers
-- Reject unsupported ticker formats
+- Reject blank inputs
+- Reject unsupported characters and formats
+- Reject duplicate tickers
 - Return a clear error for unknown companies
 
 Example:
 
-    " aapl " → "AAPL"
+```text
+" aapl " -> "AAPL"
+```
+
+The initial supported format is:
+
+```regex
+^[A-Z][A-Z0-9.-]{0,9}$
+```
+
+Provider-specific symbols may require later adjustment.
 
 ### FR-2: Company Profile Retrieval
 
-The system must retrieve and store:
+For each ticker, the system must retrieve and normalize:
 
 - Ticker
 - Company name
@@ -190,931 +268,1698 @@ The system must retrieve and store:
 - Sector
 - Industry
 - Country
+- Website
 - Company description
-- Market capitalization
-- External provider identifier
-- Last updated timestamp
-
-### FR-3: Financial Metrics Retrieval
-
-The MVP should support a limited set of metrics:
-
-- Current stock price
-- Market capitalization
-- Price-to-earnings ratio
-- Earnings per share
-- Revenue
-- Revenue growth
-- Profit margin
-- Debt-to-equity ratio
-
-The exact set may be adjusted based on data-provider availability.
-
-### FR-4: News Retrieval
-
-The system must retrieve recent company-related news.
-
-Each article should contain:
-
-- External article identifier or canonical URL hash
-- Headline
-- Source name
-- URL
-- Published timestamp
-- Short description or snippet
-- Associated company
+- Logo URL, when available
+- Provider symbol or identifier
 - Retrieval timestamp
 
-The system must avoid storing duplicate articles.
+### FR-3: Market Snapshot Retrieval
 
-### FR-5: Research Brief Generation
+For each ticker, the system should retrieve:
 
-The system must generate a structured response containing:
+- Current or latest available price
+- Absolute price change
+- Percentage price change
+- Currency
+- Market status, when available
+- Quote timestamp
+- Market capitalization
 
-    {
-      "summary": "string",
-      "recentDevelopments": [
-        "string"
-      ],
-      "opportunities": [
-        "string"
-      ],
-      "risks": [
-        "string"
-      ],
-      "sourceIds": [
-        1,
-        2
-      ]
+The UI must clearly display when data is delayed or represents the latest available close rather than a live quote.
+
+### FR-4: Financial Metrics Retrieval
+
+The MVP should support the following metrics when available.
+
+#### Valuation
+
+- P/E (TTM)
+- Forward P/E
+- PEG ratio
+- Price-to-sales ratio
+
+#### Profitability
+
+- Gross margin
+- Net margin
+- Return on equity
+
+#### Growth
+
+- Revenue growth
+- Earnings growth
+
+#### Financial Health / Risk
+
+- Debt-to-equity ratio
+- Current ratio
+- Beta
+
+#### Summary Metrics
+
+- Market capitalization
+- Revenue (TTM)
+
+The exact provider field definitions must be documented because providers may calculate metrics differently.
+
+### FR-5: Historical Price Retrieval
+
+The system must support historical daily price data for:
+
+- 1 month
+- 6 months
+- 1 year
+- 5 years
+- Maximum provider-supported range
+
+Each data point should include:
+
+- Ticker
+- Trading date
+- Adjusted close, preferred
+- Raw close, optional
+- Currency
+- Retrieval timestamp
+
+The comparison chart must support:
+
+- Raw price mode
+- Normalized return percentage mode
+
+Normalized return is calculated as:
+
+```text
+returnPercent = ((currentValue / firstValue) - 1) * 100
+```
+
+Return percentage should be the default comparison mode because raw share prices are not directly comparable.
+
+### FR-6: Recent News Retrieval
+
+For each company, the system must retrieve recent news containing:
+
+- External article ID, when available
+- Headline
+- Source name
+- Canonical URL
+- Publication timestamp
+- Short description or snippet
+- Associated ticker
+- Retrieval timestamp
+- Optional topic or sentiment label
+
+The system must prevent duplicate articles using a provider ID or canonical URL hash.
+
+The default dashboard should display up to three articles per company. The API may retrieve more for AI context.
+
+### FR-7: AI Comparison Brief
+
+The system must generate a structured comparison containing:
+
+```json
+{
+  "overallSummary": "string",
+  "advantages": {
+    "valuation": {
+      "winner": "MSFT",
+      "explanation": "string"
+    },
+    "profitability": {
+      "winner": "MSFT",
+      "explanation": "string"
+    },
+    "growth": {
+      "winner": "MSFT",
+      "explanation": "string"
+    },
+    "financialHealth": {
+      "winner": "AAPL",
+      "explanation": "string"
     }
+  },
+  "keyRisks": [
+    {
+      "ticker": "AAPL",
+      "text": "string",
+      "sourceIds": [1]
+    }
+  ],
+  "sourceIds": [1, 2]
+}
+```
 
-The generated brief must be based only on the company data, financial metrics, and news provided to the model.
+A category may return `NEUTRAL` or `INSUFFICIENT_DATA` instead of forcing a winner.
 
-### FR-6: Source Grounding
+### FR-8: Source Grounding
 
-The model prompt must assign a local source identifier to every news article.
+The AI prompt must assign local source identifiers to:
+
+- Financial metric snapshots
+- Company profile facts
+- News articles
 
 Example:
 
-    [Source 1] Apple announces...
-    [Source 2] Apple reports...
+```text
+[Metric M1] AAPL P/E (TTM): 28.74, as of 2026-07-17
+[Metric M2] MSFT P/E (TTM): 33.21, as of 2026-07-17
+[News N1] Microsoft announces... Reuters, 2026-07-16
+```
 
-The model must return source identifiers rather than inventing URLs.
+The model must return only supplied source identifiers. The backend must validate that every returned source ID exists in the prompt context.
 
-The application must validate that every returned source identifier exists in the provided context.
+### FR-9: Comparison Persistence
 
-### FR-7: Persistence
-
-The system must persist:
+The system must persist durable source data:
 
 - Companies
-- Financial metric snapshots
+- Market and financial snapshots
+- Historical prices
 - News articles
-- Generated research briefs
-- Source relationships
-- Data retrieval timestamps
+- Generated AI comparison briefs
+- Brief-to-source relationships
+- Retrieval and generation timestamps
 
-### FR-8: Caching
+The complete rendered dashboard response does not need to be stored as one large JSON document. It can be assembled from durable source tables and cached response objects.
 
-The system should cache selected responses in Redis.
+### FR-10: Caching
 
-Initial cache targets:
+Initial cache targets and TTLs:
 
-- Company overview
-- Recent news response
-- Generated research brief
+| Cached data | Initial TTL |
+|---|---:|
+| Company profile | 24 hours |
+| Quote / market snapshot | 15 minutes |
+| Financial metrics | 6 hours |
+| Historical price series | 6 hours |
+| Recent news | 30 minutes |
+| Comparison dashboard response | 15 minutes |
+| AI comparison brief | 1 hour |
 
-Suggested initial TTL values:
+All TTL values must be configurable.
 
-| Cached Data       | Initial TTL |
-|-------------------|-------------|
-| Company profile   | 24 hours    |
-| Financial metrics | 6 hours     |
-| Recent news       | 30 minutes  |
-| Research brief    | 1 hour      |
+### FR-11: Manual Refresh
 
-TTL values must be configurable.
+The application must support a refresh action that can:
 
-### FR-9: Manual Refresh
+1. Invalidate relevant Redis entries.
+2. Retrieve current provider data.
+3. Persist new snapshots where appropriate.
+4. Rebuild the dashboard response.
+5. Optionally regenerate the AI brief.
 
-The system should provide a refresh operation that:
+Refreshing raw market data and regenerating the AI brief should remain separable to avoid unnecessary OpenAI cost.
 
-1.  Invalidates relevant cache entries.
-2.  Retrieves the latest available provider data.
-3.  Updates PostgreSQL.
-4.  Optionally generates a new research brief.
+### FR-12: Data Freshness and Provenance
 
-### FR-10: API Documentation
+The dashboard must display:
 
-All public endpoints must be visible through OpenAPI documentation and Swagger UI.
+- Last updated timestamp
+- Financial-data provider
+- News-data provider
+- Whether the response was cached
+- Whether values are delayed, if known
 
-## 8. Non-Functional Requirements
+### FR-13: API Documentation
 
-### 8.1 Reliability
+All public backend endpoints must be documented through OpenAPI and visible in Swagger UI.
 
-- External API failures must not corrupt stored data.
-- Database writes for one refresh operation should be transactional where appropriate.
-- Redis failure should not make core database-backed reads unavailable.
-- Invalid model output must produce a controlled application error or fallback response.
+### FR-14: Responsive Frontend
 
-### 8.2 Performance
+The comparison page must work on:
 
-For cached requests, the target response time is:
+- Desktop
+- Tablet
+- Mobile
 
-    Under 500 ms in the local development environment
+The desktop experience is the primary MVP target.
 
-Requests involving external APIs or OpenAI may take longer.
+---
 
-The MVP does not require strict production latency guarantees.
+## 9. Non-Functional Requirements
 
-### 8.3 Maintainability
+### 9.1 Reliability
+
+- Third-party failures must not corrupt stored data.
+- Refresh writes should be transactional where appropriate.
+- Redis failure must not make PostgreSQL-backed reads unavailable.
+- Invalid AI output must produce a controlled fallback or API error.
+- Partial provider success should be represented explicitly rather than silently fabricating missing fields.
+
+### 9.2 Performance
+
+Target local response times:
+
+| Request type | Target |
+|---|---:|
+| Cached dashboard response | < 500 ms |
+| PostgreSQL-backed dashboard assembly | < 1.5 s |
+| Provider refresh without AI | Best effort; typically < 8 s |
+| AI brief generation | Best effort; typically < 15 s |
+
+These are development targets, not production SLAs.
+
+### 9.3 Maintainability
 
 The codebase should:
 
-- Use clear package boundaries
-- Avoid unnecessary abstractions
-- Keep external providers behind interfaces
-- Separate domain logic from HTTP concerns
-- Use configuration properties rather than hardcoded values
+- Use feature-oriented package boundaries
+- Keep provider DTOs separate from domain models
+- Keep business logic outside controllers
+- Centralize cache keys and TTL configuration
+- Centralize metric definitions and formatting rules
+- Avoid interfaces without a meaningful boundary
+- Avoid premature distributed-system abstractions
 
-### 8.4 Security
+### 9.4 Security
 
-- API keys must be supplied through environment variables.
-- Secrets must not be committed to Git.
-- Logs must not include API keys.
-- External URLs must be treated as untrusted input.
-- User-provided ticker values must be validated.
-- Model responses must not be trusted without validation.
+- API keys must come from environment variables or platform secrets.
+- No secret may be committed to Git.
+- Logs must not contain credentials.
+- Ticker input must be validated.
+- External URLs must be treated as untrusted.
+- HTML from providers must not be rendered unsanitized.
+- AI output must be treated as untrusted data and validated.
+- CORS should allow only configured frontend origins outside local development.
 
-### 8.5 Observability
+### 9.5 Observability
 
 The MVP should include:
 
 - Structured application logs
-- Request and error logging
-- External API failure logging
-- Cache hit or miss logging at debug level
-- Health endpoint through Spring Boot Actuator
+- Request IDs or correlation IDs
+- Provider request duration and failure logging
+- Cache hit/miss logging at debug level
+- AI generation duration and validation status
+- Spring Boot Actuator health endpoint
 
-Metrics dashboards are outside the initial scope.
+A full monitoring dashboard is not required for MVP.
 
-## 9. High-Level Architecture
+### 9.6 Accessibility
 
-    Client / Swagger UI
-            |
-            v
-    Stock Controller
-            |
-            v
-    Stock Research Service
-       |         |         |
-       |         |         |
-       v         v         v
-    PostgreSQL  Redis   External Providers
-                           |
-                 ---------------------
-                 |                   |
-                 v                   v
-          Financial Data API     News API
+The frontend should:
 
-    Stock Research Service
-            |
-            v
-    AI Brief Service
-            |
-            v
-    Spring AI / OpenAI API
+- Use semantic HTML
+- Support keyboard navigation
+- Maintain visible focus states
+- Use text labels in addition to red/green color
+- Maintain reasonable color contrast
+- Include accessible chart labels or summary text
 
-### Main Request Flow
+---
 
-    1. Client submits ticker
-    2. Controller validates request
-    3. Service checks Redis
-    4. Service checks PostgreSQL
-    5. Stale or missing data is retrieved from external providers
-    6. Data is normalized and persisted
-    7. Relevant context is selected
-    8. AI brief is generated
-    9. Model output is validated
-    10. Result is persisted
-    11. Response is cached
-    12. API response is returned
+## 10. Final Frontend Design
 
-## 10. Technology Stack
+The approved MVP is a single-page comparison dashboard.
 
-| Area                  | Technology             |
-|-----------------------|------------------------|
-| Language              | Java 21                |
-| Backend framework     | Spring Boot            |
-| AI integration        | Spring AI with OpenAI  |
-| Persistence           | Spring Data JPA        |
-| Database              | PostgreSQL             |
-| Cache                 | Redis                  |
-| Database migration    | Flyway                 |
-| API documentation     | OpenAPI and Swagger UI |
-| Unit testing          | JUnit 5 and Mockito    |
-| Integration testing   | Testcontainers         |
-| Local infrastructure  | Docker Compose         |
-| Build tool            | Maven                  |
-| CI                    | GitHub Actions         |
-| Deployment            | Render or Railway      |
-| Development assistant | Codex                  |
+Recommended screenshot location in the repository:
 
-## 11. Architecture Decisions
+```text
+docs/images/stocklens-final-ui.png
+```
 
-### 11.1 Modular Monolith
+### 10.1 Page Information Hierarchy
 
-The system will be implemented as a modular monolith.
+1. Navigation bar
+2. Compare Stocks search area
+3. Two company summary cards
+4. AI Comparison Brief
+5. Price Performance chart
+6. Key Financial Metrics
+7. Recent Developments
+8. Data sources, update time, and disclaimer
+
+### 10.2 Navigation Bar
+
+Contents:
+
+- StockLens AI logo and name
+- `Compare` navigation item
+- Optional disabled or future `Watchlist` item
+- Data freshness text on the right
+
+MVP requirement: only the Compare page must function.
+
+### 10.3 Search Area
+
+Contents:
+
+- Page title: `Compare Stocks`
+- Subtitle explaining the product
+- Left ticker input
+- `VS` separator
+- Right ticker input
+- Primary `Compare` button
+
+States:
+
+- Empty
+- Typing
+- Loading
+- Invalid ticker
+- Duplicate ticker
+- Successful comparison
+
+### 10.4 Company Summary Cards
+
+Desktop layout: two equal-width cards.
+
+Each card contains:
+
+- Company logo, when available
+- Ticker
+- Company name
+- Exchange or sector badge
+- Latest price
+- Absolute and percentage daily change
+- Market capitalization
+- P/E (TTM)
+- Revenue (TTM)
+- Short company description
+- Optional details link for future use
+
+Descriptions should remain short to preserve scanability.
+
+### 10.5 AI Comparison Brief
+
+The AI section appears before the chart and metrics because it is the product’s primary differentiator.
+
+Contents:
+
+- Overall comparison summary
+- Valuation advantage card
+- Profitability advantage card
+- Growth advantage card
+- Financial-health or lower-leverage card
+- Key risks
+- Source count / source link
+- Regenerate button
+
+The AI brief must not use language such as `buy`, `sell`, `guaranteed`, or `will outperform`.
+
+### 10.6 Price Performance Chart
+
+Controls:
+
+- `1M`
+- `6M`
+- `1Y`
+- `5Y`
+- `MAX`
+- `Price`
+- `Return %`
+
+Default:
+
+- Time range: `1Y`
+- Mode: `Return %`
+
+The section should include text summaries of the selected-period return for accessibility and fast scanning.
+
+### 10.7 Key Financial Metrics
+
+Metrics are grouped into four cards:
+
+1. Valuation
+2. Profitability
+3. Growth
+4. Financial Health
+
+The dashboard shows only the main metrics. A future `View all metrics` interaction may expand a complete table.
+
+Metric highlighting must follow explicit rules, not simply highlight the larger value.
+
+Examples:
+
+| Metric | Comparison rule |
+|---|---|
+| P/E | Context-dependent; lower may indicate cheaper valuation |
+| Forward P/E | Context-dependent; lower may indicate cheaper valuation |
+| PEG | Lower is generally preferable when positive |
+| Gross margin | Higher is generally preferable |
+| Net margin | Higher is generally preferable |
+| ROE | Higher may be preferable but can be distorted by leverage |
+| Revenue growth | Higher is generally preferable |
+| Debt/equity | Lower generally indicates lower leverage |
+| Current ratio | Must be interpreted by range, not simple maximum |
+| Beta | Descriptive risk measure; no universal winner |
+
+The UI may color a metric only when the comparison rule is defined and defensible. Otherwise, values remain neutral.
+
+### 10.8 Recent Developments
+
+Desktop layout: one column per company.
+
+Each item contains:
+
+- Headline
+- Source
+- Publication date
+- Optional topic or sentiment tag
+- Link to the original source
+
+The dashboard displays up to three items per company.
+
+### 10.9 Footer
+
+Contents:
+
+- Market / financial data provider
+- News data provider
+- Last updated timestamp
+- Informational disclaimer
+
+Suggested disclaimer:
+
+> StockLens AI provides automated research summaries for informational and educational purposes only. It does not constitute financial advice.
+
+### 10.10 Responsive Behavior
+
+#### Desktop: >= 1200 px
+
+- Two-column company cards
+- Four metric cards in one row or a 2x2 grid
+- Two-column news panels
+- Full-width chart
+
+#### Tablet: 768–1199 px
+
+- Company cards may remain two-column when space permits
+- Metric cards use a 2x2 grid
+- News may use two columns or stack
+
+#### Mobile: < 768 px
+
+- Search inputs stack vertically
+- Company cards stack
+- AI advantage cards stack or wrap
+- Metric cards become one column
+- News panels stack
+- Chart supports horizontal padding and simplified labels
+
+---
+
+## 11. High-Level Architecture
+
+```text
+Browser
+  |
+  v
+React + TypeScript Frontend
+  |
+  | HTTPS / JSON
+  v
+Spring Boot REST API
+  |
+  +--> Comparison Orchestrator
+  |      |
+  |      +--> Company Service
+  |      +--> Market Data Service
+  |      +--> Financial Metrics Service
+  |      +--> Historical Price Service
+  |      +--> News Service
+  |      +--> AI Comparison Service
+  |
+  +--> PostgreSQL
+  +--> Redis
+  +--> Financial Data Provider
+  +--> News Provider
+  +--> OpenAI through Spring AI
+```
+
+### 11.1 Main Dashboard Request Flow
+
+```text
+1. User enters two tickers.
+2. Frontend validates basic input.
+3. Frontend requests a comparison dashboard.
+4. Backend normalizes and validates tickers.
+5. Backend checks comparison response cache.
+6. On cache miss, backend loads fresh-enough source data from PostgreSQL.
+7. Missing or stale data is fetched from external providers.
+8. Provider data is normalized and persisted.
+9. Historical series are aligned by trading date.
+10. Metric comparison rules are applied.
+11. Existing fresh AI brief is loaded, or a new brief is generated when requested.
+12. Backend returns one dashboard DTO.
+13. Frontend renders all sections.
+```
+
+### 11.2 Refresh Flow
+
+```text
+1. User selects refresh.
+2. Backend invalidates affected cache entries.
+3. Backend retrieves provider data.
+4. Backend persists new snapshots.
+5. Backend rebuilds the dashboard response.
+6. AI is regenerated only when explicitly requested or configured.
+```
+
+---
+
+## 12. Technology Stack
+
+| Area | Technology |
+|---|---|
+| Frontend language | TypeScript |
+| Frontend framework | React |
+| Frontend build tool | Vite |
+| Charting | Recharts or Apache ECharts |
+| HTTP client | Fetch API or Axios |
+| Backend language | Java 21 |
+| Backend framework | Spring Boot |
+| AI integration | Spring AI with OpenAI |
+| Persistence | Spring Data JPA |
+| Database | PostgreSQL |
+| Cache | Redis |
+| Database migration | Flyway |
+| API documentation | OpenAPI / Swagger UI |
+| Unit testing | JUnit 5, Mockito, Vitest |
+| Integration testing | Testcontainers |
+| Frontend component testing | React Testing Library |
+| End-to-end testing | Optional Playwright smoke test |
+| Build tools | Maven and npm |
+| Local infrastructure | Docker Compose |
+| CI | GitHub Actions |
+| Deployment | Render or Railway |
+| Development assistant | Codex |
+
+The final chart library should be selected after a quick prototype. Recharts is simpler for the MVP; ECharts is more flexible if chart interactions become more advanced.
+
+---
+
+## 13. Key Architecture Decisions
+
+### 13.1 Modular Monolith
+
+The backend will be a modular monolith.
 
 Reasons:
 
-- The project is maintained by one developer.
-- The expected traffic is low.
-- The domain is not large enough to justify distributed services.
-- A monolith is easier to test, deploy, and debug.
-- Internal boundaries can still be represented through packages and interfaces.
+- One developer owns the project.
+- Expected traffic is low.
+- Deployment should remain simple.
+- Transactions and debugging are easier.
+- Domain boundaries can still be represented through packages.
 
-A separate Python AI service will not be created because the project does not use local Python models or a Python-specific data pipeline.
+A separate Python AI service is unnecessary because the project uses a hosted model through Spring AI and does not require a Python-specific ML pipeline.
 
-### 11.2 PostgreSQL as Source of Truth
+### 13.2 Backend-for-Frontend Dashboard Endpoint
 
-PostgreSQL will store durable application data.
+The frontend should receive one aggregated dashboard response instead of making many unrelated provider-shaped requests.
 
-Redis will only store disposable cached results.
+Reasons:
 
-If Redis data is lost, the system should still be able to reconstruct responses using PostgreSQL and external providers.
+- Reduces frontend orchestration
+- Avoids inconsistent timestamps across sections
+- Centralizes validation and fallback behavior
+- Simplifies loading and error states
+- Allows caching of the assembled comparison response
 
-### 11.3 Provider Abstraction
+Separate resource endpoints remain useful for testing and future detail pages.
 
-External financial and news providers must be accessed through interfaces.
+### 13.3 PostgreSQL as Source of Truth
+
+PostgreSQL stores durable application data. Redis stores disposable cache entries.
+
+If Redis is unavailable or cleared, the system can reconstruct responses from PostgreSQL and external providers.
+
+### 13.4 Snapshot-Based Financial Data
+
+Financial and market metrics are stored as snapshots rather than overwriting one row forever.
+
+Reasons:
+
+- Preserves retrieval history
+- Supports future metric charts
+- Makes data-cutoff timestamps explicit
+- Improves reproducibility of saved AI briefs
+
+### 13.5 Provider Abstraction
+
+External providers are accessed through interfaces.
+
+```java
+public interface FinancialDataClient {
+    CompanyProfileData getCompanyProfile(String ticker);
+    MarketSnapshotData getMarketSnapshot(String ticker);
+    FinancialMetricsData getFinancialMetrics(String ticker);
+    List<HistoricalPriceData> getHistoricalPrices(
+        String ticker,
+        LocalDate from,
+        LocalDate to
+    );
+}
+```
+
+This prevents provider response formats from leaking into business services and enables fake clients in tests.
+
+### 13.6 Structured AI Output
+
+AI output is mapped into typed Java records and validated.
+
+```java
+public record ComparisonBriefResult(
+    String overallSummary,
+    Map<MetricCategory, AdvantageResult> advantages,
+    List<RiskResult> keyRisks,
+    List<String> sourceIds
+) {}
+```
+
+The system must not treat arbitrary model text as trusted application data.
+
+### 13.7 Cache-Aside Pattern
+
+Read flow:
+
+```text
+1. Check Redis.
+2. On miss, load or build response.
+3. Store response in Redis.
+4. Return response.
+```
+
+Redis failure should degrade performance, not correctness.
+
+### 13.8 Explicit Metric Semantics
+
+Metric direction and highlighting rules are centralized in a metric definition registry.
 
 Example:
 
-    public interface FinancialDataClient {
-        CompanyProfileData getCompanyProfile(String ticker);
-        FinancialMetricsData getFinancialMetrics(String ticker);
-    }
+```java
+public record MetricDefinition(
+    MetricCode code,
+    String displayName,
+    MetricCategory category,
+    ComparisonStrategy comparisonStrategy,
+    String unit
+) {}
+```
 
-This avoids coupling business services directly to a specific provider response format.
+This prevents the frontend from making simplistic or inconsistent judgments.
 
-It also allows tests to use fake implementations.
+---
 
-### 11.4 Structured AI Output
+## 14. Proposed Repository Structure
 
-The application will not treat model output as arbitrary text.
+```text
+stocklens-ai/
+├── backend/
+│   ├── pom.xml
+│   └── src/
+│       ├── main/
+│       │   ├── java/com/stocklens/
+│       │   │   ├── common/
+│       │   │   ├── company/
+│       │   │   ├── market/
+│       │   │   ├── financial/
+│       │   │   ├── news/
+│       │   │   ├── comparison/
+│       │   │   └── research/
+│       │   └── resources/
+│       │       ├── db/migration/
+│       │       └── application.yml
+│       └── test/
+├── frontend/
+│   ├── package.json
+│   └── src/
+│       ├── api/
+│       ├── components/
+│       ├── features/comparison/
+│       ├── hooks/
+│       ├── pages/
+│       ├── types/
+│       └── utils/
+├── docs/
+│   ├── design.md
+│   └── images/
+│       └── stocklens-final-ui.png
+├── docker-compose.yml
+├── .env.example
+└── README.md
+```
 
-Spring AI will map the response to a typed Java object.
+### 14.1 Backend Package Structure
 
-Example:
+```text
+com.stocklens
+├── common
+│   ├── config
+│   ├── exception
+│   ├── response
+│   ├── time
+│   └── validation
+├── company
+│   ├── domain
+│   ├── repository
+│   ├── service
+│   └── dto
+├── market
+│   ├── client
+│   ├── domain
+│   ├── repository
+│   ├── service
+│   └── dto
+├── financial
+│   ├── client
+│   ├── domain
+│   ├── repository
+│   ├── service
+│   └── dto
+├── news
+│   ├── client
+│   ├── domain
+│   ├── repository
+│   ├── service
+│   └── dto
+├── comparison
+│   ├── controller
+│   ├── service
+│   ├── metric
+│   └── dto
+├── research
+│   ├── ai
+│   ├── domain
+│   ├── repository
+│   ├── service
+│   └── dto
+└── StockLensApplication.java
+```
 
-    public record ResearchBriefResult(
-        String summary,
-        List<String> recentDevelopments,
-        List<String> opportunities,
-        List<String> risks,
-        List<Long> sourceIds
-    ) {}
+### 14.2 Frontend Structure
 
-The application must validate:
+```text
+frontend/src
+├── api
+│   ├── client.ts
+│   └── comparisonApi.ts
+├── components
+│   ├── common
+│   └── layout
+├── features/comparison
+│   ├── components
+│   │   ├── StockSearchForm.tsx
+│   │   ├── CompanySummaryCard.tsx
+│   │   ├── AIComparisonBrief.tsx
+│   │   ├── PricePerformanceChart.tsx
+│   │   ├── MetricCategoryCard.tsx
+│   │   ├── RecentDevelopments.tsx
+│   │   └── DataProvenanceFooter.tsx
+│   ├── hooks
+│   ├── types
+│   └── utils
+├── pages
+│   └── ComparePage.tsx
+└── App.tsx
+```
 
-- Required fields are present
-- Lists do not exceed configured limits
-- Source IDs exist
-- Text fields are not blank
+---
 
-### 11.5 Cache-Aside Pattern
+## 15. Data Model
 
-The application will use a cache-aside strategy.
+### 15.1 Company
 
-    Read:
-    1. Check Redis
-    2. On miss, load or generate result
-    3. Store result in Redis
-    4. Return result
-
-PostgreSQL remains the persistent source of truth.
-
-The application should still function when Redis is unavailable, although responses may be slower.
-
-## 12. Proposed Package Structure
-
-    com.stocklens
-    ├── common
-    │   ├── config
-    │   ├── exception
-    │   ├── response
-    │   └── validation
-    │
-    ├── company
-    │   ├── controller
-    │   ├── service
-    │   ├── repository
-    │   ├── domain
-    │   └── dto
-    │
-    ├── financial
-    │   ├── client
-    │   ├── service
-    │   ├── domain
-    │   └── dto
-    │
-    ├── news
-    │   ├── client
-    │   ├── service
-    │   ├── repository
-    │   ├── domain
-    │   └── dto
-    │
-    ├── research
-    │   ├── controller
-    │   ├── service
-    │   ├── ai
-    │   ├── repository
-    │   ├── domain
-    │   └── dto
-    │
-    └── StockLensApplication.java
-
-The project should avoid creating interfaces for every class.
-
-Interfaces should be introduced where they provide a real boundary, especially:
-
-- External providers
-- AI model client
-- Cache abstraction, if required
-- Components with multiple implementations
-
-## 13. Data Model
-
-### 13.1 Company
-
-    Company
-    -------
-    id
-    ticker
-    name
-    exchange
-    sector
-    industry
-    country
-    description
-    provider_symbol
-    created_at
-    updated_at
-
-Constraints:
-
-- `ticker` must be unique.
-- `ticker` must be stored in uppercase.
-- `ticker` must not be null.
-
-### 13.2 Financial Metric Snapshot
-
-    FinancialMetricSnapshot
-    -----------------------
-    id
-    company_id
-    stock_price
-    market_cap
-    pe_ratio
-    eps
-    revenue
-    revenue_growth
-    profit_margin
-    debt_to_equity
-    currency
-    reported_at
-    retrieved_at
-    raw_data_json
-
-A snapshot model is used rather than updating one row forever.
-
-This allows the system to preserve historical values and makes future comparison possible.
-
-### 13.3 News Article
-
-    NewsArticle
-    -----------
-    id
-    company_id
-    external_id
-    headline
-    source_name
-    article_url
-    description
-    published_at
-    retrieved_at
-    url_hash
+```text
+Company
+-------
+id
+ ticker
+ name
+ exchange
+ sector
+ industry
+ country
+ website_url
+ description
+ logo_url
+ provider_symbol
+ created_at
+ updated_at
+```
 
 Constraints:
 
-- `url_hash` should be unique.
-- Duplicate provider results should not create duplicate records.
+- `ticker` is unique.
+- `ticker` is uppercase.
+- `ticker` is not null.
 
-### 13.4 Research Brief
+### 15.2 Market Snapshot
 
-    ResearchBrief
-    -------------
-    id
-    company_id
-    summary
-    recent_developments_json
-    opportunities_json
-    risks_json
-    model_name
-    prompt_version
-    generated_at
-    data_cutoff_at
+```text
+MarketSnapshot
+--------------
+id
+ company_id
+ price
+ price_change
+ price_change_percent
+ market_cap
+ currency
+ quote_timestamp
+ retrieved_at
+ provider_name
+ raw_data_json
+```
 
-### 13.5 Research Brief Source
+### 15.3 Financial Metric Snapshot
 
-    ResearchBriefSource
-    -------------------
-    research_brief_id
-    news_article_id
+```text
+FinancialMetricSnapshot
+-----------------------
+id
+ company_id
+ pe_ttm
+ forward_pe
+ peg_ratio
+ price_to_sales
+ revenue_ttm
+ gross_margin
+ net_margin
+ return_on_equity
+ revenue_growth
+ earnings_growth
+ debt_to_equity
+ current_ratio
+ beta
+ currency
+ reported_at
+ retrieved_at
+ provider_name
+ raw_data_json
+```
 
-This creates a many-to-many relationship between generated briefs and source articles.
+A single normalized snapshot row is acceptable for the MVP. A more flexible metric-value schema can be introduced later only if provider variability makes it necessary.
 
-## 14. API Design
+### 15.4 Historical Price
+
+```text
+HistoricalPrice
+---------------
+id
+ company_id
+ trading_date
+ open_price
+ high_price
+ low_price
+ close_price
+ adjusted_close
+ volume
+ currency
+ provider_name
+ retrieved_at
+```
+
+Constraint:
+
+```text
+unique(company_id, trading_date, provider_name)
+```
+
+### 15.5 News Article
+
+```text
+NewsArticle
+-----------
+id
+ external_id
+ headline
+ source_name
+ article_url
+ description
+ published_at
+ retrieved_at
+ url_hash
+ provider_name
+```
+
+### 15.6 News Article Company
+
+```text
+NewsArticleCompany
+------------------
+news_article_id
+ company_id
+```
+
+A join table supports articles associated with multiple companies.
+
+### 15.7 Comparison Brief
+
+```text
+ComparisonBrief
+---------------
+id
+ left_company_id
+ right_company_id
+ overall_summary
+ advantages_json
+ key_risks_json
+ model_name
+ prompt_version
+ generated_at
+ data_cutoff_at
+ input_hash
+```
+
+The ticker pair must be stored in canonical order for cache and lookup consistency, while the response may preserve the user-selected display order.
+
+### 15.8 Comparison Brief Source
+
+```text
+ComparisonBriefSource
+---------------------
+comparison_brief_id
+ source_type
+ source_reference
+ news_article_id nullable
+ financial_snapshot_id nullable
+ market_snapshot_id nullable
+```
+
+For MVP simplicity, the application may persist news relations and store metric-source IDs in structured JSON. The schema should not become unnecessarily complex before implementation proves the need.
+
+---
+
+## 16. API Design
 
 Base path:
 
-    /api/v1
+```text
+/api/v1
+```
 
-### 14.1 Retrieve Company Overview
+### 16.1 Primary Dashboard Endpoint
 
-    GET /api/v1/stocks/{ticker}
-
-Example response:
-
-    {
-      "ticker": "AAPL",
-      "companyName": "Apple Inc.",
-      "exchange": "NASDAQ",
-      "sector": "Technology",
-      "industry": "Consumer Electronics",
-      "description": "Apple designs and sells...",
-      "lastUpdatedAt": "2026-07-17T18:30:00Z"
-    }
-
-### 14.2 Retrieve Financial Metrics
-
-    GET /api/v1/stocks/{ticker}/metrics
+```http
+GET /api/v1/comparisons?left=AAPL&right=MSFT&period=1Y&mode=RETURN
+```
 
 Example response:
 
-    {
-      "ticker": "AAPL",
-      "stockPrice": 210.15,
-      "marketCap": 3200000000000,
-      "peRatio": 32.4,
-      "eps": 6.49,
-      "currency": "USD",
-      "reportedAt": "2026-07-17T00:00:00Z",
-      "retrievedAt": "2026-07-17T18:30:00Z"
+```json
+{
+  "comparisonId": "AAPL:MSFT:1Y:RETURN",
+  "left": {
+    "ticker": "AAPL",
+    "companyName": "Apple Inc.",
+    "exchange": "NASDAQ",
+    "sector": "Technology",
+    "price": 192.62,
+    "priceChange": 1.35,
+    "priceChangePercent": 0.71,
+    "marketCap": 2960000000000,
+    "peTtm": 28.74,
+    "revenueTtm": 394330000000,
+    "description": "Apple designs and markets consumer technology products."
+  },
+  "right": {
+    "ticker": "MSFT",
+    "companyName": "Microsoft Corporation",
+    "exchange": "NASDAQ",
+    "sector": "Technology",
+    "price": 417.11,
+    "priceChange": -0.92,
+    "priceChangePercent": -0.22,
+    "marketCap": 3100000000000,
+    "peTtm": 33.21,
+    "revenueTtm": 245120000000,
+    "description": "Microsoft develops software, cloud services, and devices."
+  },
+  "pricePerformance": {
+    "period": "1Y",
+    "mode": "RETURN",
+    "leftReturnPercent": 18.4,
+    "rightReturnPercent": -7.2,
+    "series": []
+  },
+  "metricGroups": [],
+  "news": {
+    "left": [],
+    "right": []
+  },
+  "aiBrief": null,
+  "provenance": {
+    "financialProvider": "configured-provider",
+    "newsProvider": "configured-provider",
+    "lastUpdatedAt": "2026-07-18T22:40:00Z",
+    "cached": false
+  }
+}
+```
+
+The dashboard may initially return `aiBrief: null` and load the brief with a separate request to avoid blocking the entire page.
+
+### 16.2 Generate or Retrieve AI Comparison Brief
+
+```http
+POST /api/v1/comparisons/research
+Content-Type: application/json
+```
+
+Request:
+
+```json
+{
+  "leftTicker": "AAPL",
+  "rightTicker": "MSFT",
+  "forceRefresh": false
+}
+```
+
+Response:
+
+```json
+{
+  "overallSummary": "Microsoft currently shows lower valuation multiples and stronger recent revenue growth, while Apple displays different profitability and leverage characteristics.",
+  "advantages": {
+    "valuation": {
+      "winner": "MSFT",
+      "explanation": "MSFT has the lower P/E in the supplied snapshot.",
+      "sourceIds": ["M1", "M2"]
     }
+  },
+  "keyRisks": [],
+  "sources": [],
+  "generatedAt": "2026-07-18T22:41:00Z",
+  "cached": false
+}
+```
 
-### 14.3 Retrieve Recent News
+### 16.3 Refresh Comparison Data
 
-    GET /api/v1/stocks/{ticker}/news?limit=10
+```http
+POST /api/v1/comparisons/refresh
+Content-Type: application/json
+```
 
-Constraints:
+Request:
 
-- Default limit: 10
-- Maximum limit: 20
+```json
+{
+  "tickers": ["AAPL", "MSFT"],
+  "regenerateBrief": false
+}
+```
 
-### 14.4 Generate or Retrieve Research Brief
+### 16.4 Supporting Resource Endpoints
 
-    POST /api/v1/stocks/{ticker}/research
+```http
+GET /api/v1/stocks/{ticker}
+GET /api/v1/stocks/{ticker}/metrics
+GET /api/v1/stocks/{ticker}/history?period=1Y
+GET /api/v1/stocks/{ticker}/news?limit=10
+```
 
-Optional request:
+These are useful for testing, future detail pages, and Swagger demonstration.
 
-    {
-      "forceRefresh": false
-    }
+### 16.5 Health Endpoint
 
-Example response:
+```http
+GET /actuator/health
+```
 
-    {
-      "ticker": "AAPL",
-      "summary": "Apple remains a highly profitable consumer technology company...",
-      "recentDevelopments": [
-        "The company reported..."
-      ],
-      "opportunities": [
-        "Services revenue continues to expand..."
-      ],
-      "risks": [
-        "The company remains exposed to..."
-      ],
-      "sources": [
-        {
-          "id": 12,
-          "headline": "Apple reports quarterly results",
-          "sourceName": "Example News",
-          "url": "https://example.com/article"
-        }
-      ],
-      "generatedAt": "2026-07-17T18:35:00Z",
-      "cached": false
-    }
+---
 
-### 14.5 Refresh Stock Data
+## 17. Frontend Data Flow and State
 
-    POST /api/v1/stocks/{ticker}/refresh
+### 17.1 URL State
 
-This endpoint refreshes company, financial, and news data.
-
-AI brief generation should remain separate so that refreshing raw data does not automatically create an OpenAI cost.
-
-## 15. Error Handling
-
-The API should return a consistent error structure.
-
-    {
-      "code": "STOCK_NOT_FOUND",
-      "message": "No company was found for ticker INVALID.",
-      "timestamp": "2026-07-17T18:40:00Z",
-      "path": "/api/v1/stocks/INVALID"
-    }
-
-Initial error codes:
-
-| Code                     | HTTP Status |
-|--------------------------|-------------|
-| INVALID_TICKER           | 400         |
-| STOCK_NOT_FOUND          | 404         |
-| FINANCIAL_PROVIDER_ERROR | 502         |
-| NEWS_PROVIDER_ERROR      | 502         |
-| AI_PROVIDER_ERROR        | 502         |
-| INVALID_AI_RESPONSE      | 502         |
-| RATE_LIMITED             | 429         |
-| INTERNAL_ERROR           | 500         |
-
-Raw external provider errors should not be returned directly to the client.
-
-## 16. External API Integration
-
-The MVP may use one financial data provider and one news provider.
-
-The final provider should be selected based on:
-
-- Free-tier availability
-- Request limits
-- Availability of company fundamentals
-- Availability of valuation metrics
-- News coverage
-- Java integration simplicity
-- Terms of use
-
-Provider-specific DTOs must not be used directly as domain entities.
-
-The transformation flow should be:
-
-    Provider Response
-          |
-          v
-    Provider DTO
-          |
-          v
-    Normalization Mapper
-          |
-          v
-    Domain Entity / Application DTO
-
-Required external-client behavior:
-
-- Configurable connection timeout
-- Configurable read timeout
-- Controlled retries for transient failures
-- No retry for invalid ticker responses
-- Rate-limit error handling
-- Sanitized logging
-
-The MVP should avoid adding a general resilience framework until basic integration is working.
-
-## 17. AI Generation Design
-
-### 17.1 Input Context
-
-The model should receive:
-
-- Company name and description
-- Selected financial metrics
-- Metric timestamps
-- Up to a configured number of recent news articles
-- Clear source identifiers
-- Explicit output instructions
-
-### 17.2 Prompt Rules
-
-The prompt must instruct the model to:
-
-- Use only the supplied information
-- Avoid personalized investment advice
-- Avoid price predictions
-- Distinguish facts from interpretation
-- Return structured output
-- Reference only valid source IDs
-- State when available evidence is limited
-- Avoid presenting missing information as fact
-
-### 17.3 Prompt Versioning
-
-Every saved brief should record a prompt version.
+The selected tickers and chart options should be represented in the URL where practical.
 
 Example:
 
-    stock-research-v1
+```text
+/compare?left=AAPL&right=MSFT&period=1Y&mode=RETURN
+```
 
-When the prompt changes materially, the version should be updated.
+Benefits:
 
-This makes generated results more reproducible and easier to discuss in interviews.
+- Shareable comparisons
+- Browser back/forward support
+- Refresh persistence
 
-### 17.4 Output Limits
+### 17.2 Loading Strategy
+
+Recommended loading sequence:
+
+1. Load dashboard source data.
+2. Render company cards, chart, metrics, and news.
+3. Load existing or generated AI brief separately.
+
+This prevents OpenAI latency from blocking the entire dashboard.
+
+### 17.3 UI States
+
+The frontend must support:
+
+- Initial empty state
+- Dashboard loading state
+- Partial section loading
+- AI brief loading state
+- Invalid input state
+- Unknown ticker state
+- Provider error state
+- Partial-data warning state
+- Complete success state
+
+### 17.4 Data Formatting
+
+The backend returns numeric values. The frontend formats them for display.
+
+Examples:
+
+```text
+2960000000000 -> $2.96T
+394330000000 -> $394.33B
+0.246 -> 24.6%
+```
+
+Numeric data must not be persisted as formatted strings.
+
+---
+
+## 18. Error Handling
+
+The API returns a consistent structure:
+
+```json
+{
+  "code": "STOCK_NOT_FOUND",
+  "message": "No company was found for ticker INVALID.",
+  "timestamp": "2026-07-18T22:45:00Z",
+  "path": "/api/v1/comparisons",
+  "requestId": "abc-123",
+  "details": []
+}
+```
+
+Initial error codes:
+
+| Code | HTTP status |
+|---|---:|
+| INVALID_TICKER | 400 |
+| DUPLICATE_TICKERS | 400 |
+| STOCK_NOT_FOUND | 404 |
+| FINANCIAL_PROVIDER_ERROR | 502 |
+| NEWS_PROVIDER_ERROR | 502 |
+| AI_PROVIDER_ERROR | 502 |
+| INVALID_AI_RESPONSE | 502 |
+| RATE_LIMITED | 429 |
+| DATA_UNAVAILABLE | 503 |
+| INTERNAL_ERROR | 500 |
+
+Raw third-party errors must not be returned directly to the browser.
+
+The dashboard may return partial data when one non-critical section fails. Partial data must include warnings such as:
+
+```json
+{
+  "warnings": [
+    {
+      "section": "NEWS",
+      "message": "Recent news is temporarily unavailable."
+    }
+  ]
+}
+```
+
+---
+
+## 19. External API Integration
+
+The MVP should use one financial-data provider and one news provider.
+
+Provider selection criteria:
+
+- Free-tier or low-cost availability
+- Request limits
+- Availability of fundamentals and historical prices
+- Availability of company news
+- Stable documentation
+- Legal permission to display returned data
+- Java integration simplicity
+
+Provider DTOs must remain inside the provider adapter.
+
+Transformation flow:
+
+```text
+Provider JSON
+    -> Provider DTO
+    -> Normalization Mapper
+    -> Domain / Persistence Model
+    -> API DTO
+```
+
+Required client behavior:
+
+- Configurable connection timeout
+- Configurable read timeout
+- Limited retries for transient failures
+- No retry for invalid tickers
+- Rate-limit detection
+- Sanitized logging
+- Response validation
+
+A resilience framework such as Resilience4j should be added only when actual retry/circuit-breaker requirements justify it.
+
+---
+
+## 20. AI Generation Design
+
+### 20.1 Input Context
+
+The model receives:
+
+- Both company names and descriptions
+- Selected financial metrics for both companies
+- Metric timestamps
+- Historical-period return summary
+- Recent news for both companies
+- Source identifiers
+- Explicit output schema and constraints
+
+The model does not need every historical price point. The backend should provide summarized return values and relevant trend facts.
+
+### 20.2 Prompt Rules
+
+The prompt must instruct the model to:
+
+- Use only supplied information
+- Compare rather than recommend
+- Avoid personalized advice
+- Avoid price forecasts
+- Distinguish facts from interpretation
+- Use only valid source IDs
+- Return structured JSON
+- Return `INSUFFICIENT_DATA` when evidence is missing
+- Avoid claiming that one company is universally better
+
+### 20.3 Prompt Versioning
+
+Every stored brief records a prompt version.
+
+Example:
+
+```text
+stock-comparison-v1
+```
+
+Material prompt changes require a new version.
+
+### 20.4 Output Limits
 
 Initial limits:
 
-- Summary: maximum 250 words
-- Recent developments: maximum 5
-- Opportunities: maximum 5
-- Risks: maximum 5
-- Source IDs: maximum 10
+- Overall summary: maximum 180 words
+- Explanation per advantage: maximum 80 words
+- Key risks: maximum 6 total
+- Source IDs: maximum 15
 
-### 17.5 Validation
+### 20.5 Validation
 
-The AI service must reject or repair responses when:
+The backend validates:
 
-- Required fields are missing
-- Source IDs are invalid
-- Output cannot be parsed
-- Lists exceed limits
-- The response is empty
+- Required fields
+- Allowed category names
+- Allowed winner values
+- Text length limits
+- Nonblank content
+- Valid source IDs
+- No unsupported ticker symbols
 
-The first version should use one controlled retry with a correction prompt.
+One repair retry is allowed. A second invalid response returns `INVALID_AI_RESPONSE` or a controlled no-brief fallback.
 
-If the second response is invalid, the API should return `INVALID_AI_RESPONSE`.
+### 20.6 Input Hashing
 
-## 18. Caching Design
+A comparison brief should store a hash based on:
 
-### 18.1 Cache Keys
+- Canonical ticker pair
+- Financial snapshot IDs
+- News article IDs
+- Prompt version
+- Model name
 
-Suggested format:
+If the input hash has not changed and the cached brief is fresh, the application can reuse the previous result.
 
-    stocklens:company:{ticker}
-    stocklens:metrics:{ticker}
-    stocklens:news:{ticker}:{limit}
-    stocklens:research:{ticker}:{dataVersion}
+---
 
-The key format must be centralized rather than constructed in multiple services.
+## 21. Caching Design
 
-### 18.2 Cache Invalidation
+### 21.1 Cache Keys
 
-A stock refresh should invalidate:
+```text
+stocklens:company:{ticker}
+stocklens:market:{ticker}
+stocklens:metrics:{ticker}
+stocklens:history:{ticker}:{period}
+stocklens:news:{ticker}:{limit}
+stocklens:comparison:{left}:{right}:{period}:{mode}
+stocklens:brief:{left}:{right}:{inputHash}
+```
 
-- Company cache
-- Metrics cache
+Ticker pairs must be canonicalized for storage and cache lookup.
+
+### 21.2 Invalidation
+
+Refreshing a ticker invalidates:
+
+- Company profile cache
+- Market snapshot cache
+- Financial metrics cache
+- Historical price cache
 - News cache
-- Research brief cache
+- Any comparison cache containing that ticker
+- Any AI brief cache based on superseded input data
 
-A new research brief should replace the current research cache.
+### 21.3 Redis Failure Behavior
 
-### 18.3 Redis Failure Behavior
+On read failure:
 
-Redis is an optimization, not a required source of truth.
+- Log the failure.
+- Continue using PostgreSQL or providers.
 
-On Redis read failure:
+On write failure:
 
-- Log the error
-- Continue with PostgreSQL or provider retrieval
+- Log the failure.
+- Return the successfully built response.
 
-On Redis write failure:
+---
 
-- Log the error
-- Return the successfully generated response
+## 22. Database Migration Strategy
 
-## 19. Database Migration Strategy
+Flyway files:
 
-Flyway migrations will be stored under:
-
-    src/main/resources/db/migration
+```text
+backend/src/main/resources/db/migration
+```
 
 Initial migrations:
 
-    V1__create_company_table.sql
-    V2__create_financial_metric_snapshot_table.sql
-    V3__create_news_article_table.sql
-    V4__create_research_brief_tables.sql
-    V5__add_indexes_and_constraints.sql
-
-Hibernate schema generation should use validation rather than automatic mutation in normal development.
+```text
+V1__create_company_table.sql
+V2__create_market_snapshot_table.sql
+V3__create_financial_metric_snapshot_table.sql
+V4__create_historical_price_table.sql
+V5__create_news_tables.sql
+V6__create_comparison_brief_tables.sql
+V7__add_indexes_and_constraints.sql
+```
 
 Recommended setting:
 
-    spring.jpa.hibernate.ddl-auto=validate
+```yaml
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+```
 
-Flyway is responsible for creating and changing the schema.
+Flyway owns schema creation and modification.
 
-## 20. Testing Strategy
+---
 
-### 20.1 Unit Tests
+## 23. Testing Strategy
 
-JUnit and Mockito should cover:
+### 23.1 Backend Unit Tests
 
-- Ticker normalization
-- Ticker validation
-- Financial DTO normalization
+Cover:
+
+- Ticker normalization and validation
+- Duplicate ticker rejection
+- Provider DTO normalization
+- Historical return calculation
+- Trading-date series alignment
+- Metric comparison strategies
 - News deduplication
 - Cache fallback behavior
-- Research context construction
-- AI source ID validation
+- AI context construction
+- AI source validation
+- Input-hash construction
 - Exception mapping
 
-### 20.2 Repository Integration Tests
+### 23.2 Repository Integration Tests
 
-Testcontainers with PostgreSQL should verify:
+Use PostgreSQL Testcontainers to verify:
 
-- Flyway migrations execute successfully
-- JPA entities map correctly
+- Flyway migrations
+- JPA mappings
 - Unique ticker constraint
-- Unique article hash constraint
-- Snapshot queries return the latest record
-- Research-source relationships persist correctly
+- Unique historical-price constraint
+- Unique URL hash
+- Latest snapshot queries
+- News-company relationships
+- Comparison brief persistence
 
-### 20.3 Redis Integration Tests
+### 23.3 Redis Integration Tests
 
-Testcontainers with Redis should verify:
+Use Redis Testcontainers to verify:
 
-- Cache serialization
+- Serialization
 - TTL behavior
 - Cache invalidation
-- Fallback behavior when values are missing
+- Pair-key canonicalization
+- Missing-value fallback
 
-### 20.4 Controller Tests
+### 23.4 Controller Tests
 
-Controller tests should verify:
+Verify:
 
-- HTTP status codes
-- Request validation
+- HTTP statuses
+- Query and request validation
 - Response structure
-- Error response structure
+- Error structure
+- Partial-data warnings
 
-### 20.5 External Provider Tests
+### 23.5 Provider Client Tests
 
-Automated CI tests should not call real paid APIs.
+CI must not depend on paid live APIs.
 
-Provider clients should be tested with:
+Use mock HTTP responses for:
 
-- Mock HTTP responses
-- Recorded sample payloads where permitted
-- Invalid ticker responses
-- Timeout behavior
-- Rate-limit responses
-- Malformed provider responses
+- Successful data
+- Unknown ticker
+- Timeout
+- Rate limit
+- Malformed response
+- Missing fields
 
-### 20.6 AI Tests
+### 23.6 AI Tests
 
-CI should not depend on live OpenAI calls.
-
-Tests should use a fake AI client returning:
+Use a fake AI client returning:
 
 - Valid structured output
 - Invalid JSON
 - Invalid source IDs
+- Unsupported winner values
 - Empty output
 - Provider error
 
-A live OpenAI smoke test may be run manually and excluded from the default CI pipeline.
+A live OpenAI smoke test may be run manually and excluded from default CI.
 
-## 21. Local Development
+### 23.7 Frontend Tests
 
-Docker Compose should initially start:
+Use Vitest and React Testing Library for:
+
+- Search-form validation
+- Loading and error states
+- Company-card rendering
+- Metric formatting
+- Chart mode/range controls
+- AI brief rendering
+- Partial-data warnings
+
+Optional Playwright smoke test:
+
+```text
+Enter AAPL and MSFT -> submit -> dashboard renders expected sections
+```
+
+---
+
+## 24. Local Development
+
+Docker Compose initially starts:
 
 - PostgreSQL
 - Redis
 
-The Spring Boot application may run directly from the developer machine.
+Backend:
 
-Example:
+```bash
+docker compose up -d
+cd backend
+./mvnw spring-boot:run
+```
 
-    docker compose up -d
-    ./mvnw spring-boot:run
+Frontend:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
 Required environment variables:
 
-    OPENAI_API_KEY
-    FINANCIAL_API_KEY
-    NEWS_API_KEY
-    POSTGRES_DB
-    POSTGRES_USER
-    POSTGRES_PASSWORD
+```text
+OPENAI_API_KEY
+FINANCIAL_API_KEY
+NEWS_API_KEY
+POSTGRES_DB
+POSTGRES_USER
+POSTGRES_PASSWORD
+SPRING_DATASOURCE_URL
+SPRING_DATA_REDIS_HOST
+VITE_API_BASE_URL
+```
 
-A `.env.example` file should document required values without containing real secrets.
+A `.env.example` file documents required values without real secrets.
 
-## 22. CI Pipeline
+---
 
-GitHub Actions should run on:
+## 25. CI Pipeline
 
-- Pull requests
-- Pushes to the main branch
+GitHub Actions runs on pull requests and pushes to `main`.
 
-Initial pipeline:
+Recommended jobs:
 
-    1. Check out repository
-    2. Set up Java 21
-    3. Cache Maven dependencies
-    4. Run formatting or static checks
-    5. Run mvn verify
-    6. Run unit and integration tests
-    7. Build application artifact
+### Backend Job
 
-Deployment should not be added until the local application and automated tests are stable.
+1. Checkout
+2. Set up Java 21
+3. Cache Maven dependencies
+4. Run formatting or static checks
+5. Run `./mvnw verify`
+6. Run unit and Testcontainers integration tests
+7. Build JAR
 
-## 23. Deployment
+### Frontend Job
 
-The initial deployment should prioritize simplicity.
+1. Checkout
+2. Set up Node.js
+3. Cache npm dependencies
+4. Run `npm ci`
+5. Run lint
+6. Run type checking
+7. Run tests
+8. Run production build
 
-Preferred options:
+Deployment should be added only after both jobs are stable.
 
-- Railway
+---
+
+## 26. Deployment
+
+The first deployment prioritizes simplicity.
+
+Recommended options:
+
 - Render
+- Railway
 
-Possible deployed components:
+Possible deployment layout:
 
-    Spring Boot web service
-    PostgreSQL managed database
-    Redis managed service
+```text
+React static frontend
+Spring Boot web service
+Managed PostgreSQL
+Managed Redis
+```
 
-AWS deployment is not part of the MVP because it would add infrastructure complexity without improving the core product.
+The frontend and backend may be deployed separately.
 
-The deployment must use environment variables for secrets and provider keys.
+Requirements:
 
-## 24. Development Workflow with Codex
+- Environment-based secrets
+- Configured CORS origin
+- HTTPS
+- Health check
+- No production secrets in repository files
 
-Codex will be used as an implementation assistant, not as the owner of architectural decisions.
+AWS is not part of the MVP because it would add infrastructure complexity without improving the core portfolio value.
 
-Each development task should be bounded.
+---
 
-Good task example:
+## 27. Development Workflow with Codex
 
-    Implement the Company entity, repository, Flyway migration, and repository integration tests according to Sections 13 and 19 of the design document. Do not implement external API calls or controllers.
+Codex is an implementation assistant, not the source of architectural decisions.
 
-Poor task example:
+Each task should reference this document and remain narrowly scoped.
 
-    Build the entire StockLens AI application.
+Good task:
 
-For every Codex-generated change:
+```text
+Implement the HistoricalPrice entity, Flyway migration, repository, and PostgreSQL Testcontainers tests according to Sections 15.4, 22, and 23. Do not implement controllers or external provider calls.
+```
 
-1.  Review the diff.
-2.  Confirm that it follows the design document.
-3.  Run relevant tests.
-4.  Remove unnecessary abstractions.
-5.  Check error handling.
-6.  Check for hardcoded secrets.
-7.  Commit the feature independently.
+Poor task:
 
-The design document should be included in the repository as:
+```text
+Build StockLens AI.
+```
 
-    docs/design.md
+For every generated change:
 
-## 25. MVP Milestones
+1. Review the diff.
+2. Compare it with this design.
+3. Run relevant tests.
+4. Remove unnecessary abstractions.
+5. Check error handling.
+6. Check secrets and logs.
+7. Commit one coherent feature.
 
-### Milestone 1: Project Foundation
+Repository path:
+
+```text
+docs/design.md
+```
+
+---
+
+## 28. MVP Milestones
+
+### Milestone 1: Repository and Infrastructure
 
 Deliverables:
 
+- Monorepo structure
 - Spring Boot project
-- Maven configuration
+- React/Vite project
 - Docker Compose
 - PostgreSQL connection
 - Redis connection
 - Flyway configuration
-- Basic health endpoint
-- GitHub repository structure
+- Actuator health endpoint
+- Basic CI skeleton
 
-### Milestone 2: Company Persistence
+### Milestone 2: Company and Market Data
 
 Deliverables:
 
-- Company entity
-- Company repository
-- Company service
+- Company entity and migration
+- Market snapshot entity and migration
 - Ticker validation
-- Company API
-- Flyway migration
+- Financial provider interface
+- Company and quote provider implementation
+- Supporting stock endpoints
 - Unit and integration tests
 
-### Milestone 3: Financial Data Integration
+### Milestone 3: Financial Metrics and Historical Prices
 
 Deliverables:
 
-- Financial provider interface
-- Provider implementation
-- Metric normalization
-- Financial snapshot persistence
-- Metrics API
-- Provider error handling
-- Tests using mock provider responses
+- Financial snapshot entity
+- Historical price entity
+- Provider normalization
+- Return-percentage calculation
+- Metric definition registry
+- Metrics and history endpoints
+- Tests
 
 ### Milestone 4: News Integration
 
@@ -1123,165 +1968,242 @@ Deliverables:
 - News provider interface
 - News provider implementation
 - Article persistence
-- Duplicate prevention
-- Recent news API
-- News integration tests
+- Deduplication
+- Company relationships
+- News endpoint
+- Tests
 
-### Milestone 5: AI Research Brief
+### Milestone 5: Aggregated Comparison API
 
 Deliverables:
 
-- Research context builder
+- Comparison orchestrator
+- Dashboard DTO
+- Series alignment
+- Metric grouping and comparison rules
+- Partial-data warnings
+- Primary comparison endpoint
+- Tests
+
+### Milestone 6: Frontend Dashboard
+
+Deliverables:
+
+- Search form
+- Company summary cards
+- Price chart
+- Metric category cards
+- Recent news panels
+- Responsive layout
+- Loading and error states
+- Frontend tests
+
+### Milestone 7: AI Comparison Brief
+
+Deliverables:
+
+- AI context builder
 - Spring AI integration
-- Structured response model
-- Prompt template
+- Structured output schema
+- Prompt template and version
 - Source grounding
-- Response validation
-- Research brief persistence
+- Validation and repair retry
+- Persistence
+- AI brief frontend section
 - Mocked AI tests
 
-### Milestone 6: Caching
+### Milestone 8: Caching and Refresh
 
 Deliverables:
 
-- Redis cache configuration
+- Cache configuration
 - Cache-aside behavior
 - TTL configuration
-- Cache invalidation
-- Redis integration tests
+- Comparison cache
+- AI input-hash reuse
+- Refresh endpoint
+- Cache invalidation tests
 
-### Milestone 7: API Documentation and CI
-
-Deliverables:
-
-- OpenAPI documentation
-- Swagger UI
-- GitHub Actions workflow
-- Full automated test execution
-- README setup instructions
-
-### Milestone 8: Deployment and Demo
+### Milestone 9: Documentation and Polish
 
 Deliverables:
 
+- OpenAPI and Swagger UI
+- Final README
+- Architecture diagram
+- Final screenshot
+- Data-source disclosure
+- Accessibility check
+- Full CI
+
+### Milestone 10: Deployment and Demo
+
+Deliverables:
+
+- Deployed frontend
 - Deployed backend
 - Managed PostgreSQL
 - Managed Redis
-- Public Swagger UI or API demo
-- Architecture diagram
-- Final README
+- Public demo URL
+- Demo video or GIF
 - Resume-ready project bullets
 
-## 26. Main Risks
+---
 
-### Risk 1: External API Limitations
+## 29. Main Risks and Mitigations
 
-Free financial APIs may have strict request limits or incomplete metrics.
+### Risk 1: Financial Provider Limitations
 
-Mitigation:
-
-- Hide the provider behind an interface.
-- Cache provider responses.
-- Keep the initial metric set small.
-- Store sample test payloads.
-
-### Risk 2: AI Hallucination
-
-The model may generate claims not supported by supplied data.
+Free APIs may have strict request limits, delayed data, or missing metrics.
 
 Mitigation:
 
-- Limit input context.
-- Use source identifiers.
+- Keep providers behind interfaces.
+- Cache responses.
+- Store snapshots.
+- Keep metric set focused.
+- Show missing data explicitly.
+- Document provider definitions.
+
+### Risk 2: Inconsistent Metric Definitions
+
+Different providers may calculate P/E, growth, or margins differently.
+
+Mitigation:
+
+- Use one primary provider per metric category in MVP.
+- Store provider name and timestamps.
+- Document definitions.
+- Avoid mixing provider values without disclosure.
+
+### Risk 3: AI Hallucination
+
+The model may generate unsupported claims.
+
+Mitigation:
+
+- Supply a controlled context.
+- Use explicit source IDs.
 - Require structured output.
-- Validate returned sources.
-- Clearly label the result as an automated research summary.
-- Avoid investment recommendations.
+- Validate IDs and fields.
+- Allow `INSUFFICIENT_DATA`.
+- Avoid recommendation language.
 
-### Risk 3: Scope Expansion
+### Risk 4: Misleading Metric Highlighting
 
-Adding RAG, agents, authentication, dashboards, and cloud infrastructure may delay completion.
-
-Mitigation:
-
-- Treat the non-goals section as binding for MVP development.
-- Complete one vertical slice before adding optional features.
-- Do not add a new tool without a concrete problem.
-
-### Risk 4: Excessive Configuration Work
-
-Redis, Docker, Testcontainers, Flyway, and deployment may consume more time than product development.
+Simple `higher is better` logic may be financially incorrect.
 
 Mitigation:
 
-- Add infrastructure incrementally.
-- Complete PostgreSQL-backed functionality before Redis.
-- Add deployment only after CI is passing.
+- Centralize comparison rules.
+- Highlight only metrics with defensible semantics.
+- Keep context-dependent metrics neutral.
+- Use explanatory tooltips later if needed.
 
-### Risk 5: Unstable Generated Output
+### Risk 5: Scope Expansion
 
-AI responses may vary between calls.
+Authentication, watchlists, RAG, agents, and cloud infrastructure could delay completion.
 
 Mitigation:
 
-- Use structured output.
-- Use a low model temperature.
-- Persist generated reports.
-- Record model and prompt versions.
-- Avoid exact-text assertions in tests.
+- Treat non-goals as binding.
+- Complete the comparison vertical slice first.
+- Add no technology without a concrete problem.
 
-## 27. Success Criteria
+### Risk 6: External Latency
+
+Several provider calls plus OpenAI may make the page slow.
+
+Mitigation:
+
+- Cache aggressively within provider terms.
+- Load AI separately.
+- Fetch independent data concurrently.
+- Persist provider data.
+- Display section-level loading states.
+
+### Risk 7: Generated Frontend Complexity
+
+AI-generated UI code can become oversized or hard to maintain.
+
+Mitigation:
+
+- Keep components feature-oriented.
+- Define typed API models.
+- Remove duplicate formatting logic.
+- Add frontend tests.
+- Do not couple the application to a proprietary app-builder runtime.
+
+---
+
+## 30. Success Criteria
 
 The MVP is complete when:
 
-- A user can submit a valid ticker.
-- The system can retrieve and persist company data.
-- The system can retrieve and persist selected financial metrics.
-- The system can retrieve and deduplicate recent news.
-- The system can generate a structured research brief.
-- The brief references valid stored sources.
-- Repeated requests can use cached results.
+- A user can enter two valid tickers.
+- Invalid and duplicate tickers are handled clearly.
+- Both company summary cards render.
+- Market and financial data are persisted.
+- Historical prices are retrieved and compared.
+- Price and return modes work.
+- Metrics are grouped into four categories.
+- Recent news is retrieved and deduplicated.
+- A structured AI comparison brief is generated.
+- AI source IDs are valid.
+- Data sources and timestamps are visible.
+- Repeated requests use cached results where appropriate.
+- Redis failure does not break core reads.
 - PostgreSQL and Redis run through Docker Compose.
-- Flyway creates the database schema.
-- Unit and integration tests pass.
-- GitHub Actions verifies every pull request.
+- Flyway creates the schema.
+- Backend and frontend tests pass.
+- GitHub Actions verifies pull requests.
 - Swagger UI documents the API.
-- The application is deployed or can be started using documented steps.
+- The application can be started from documented instructions.
+- The deployed or local UI closely matches the approved final mockup.
 
-## 28. Future Enhancements
+---
 
-Possible post-MVP improvements:
+## 31. Future Enhancements
 
-- Compare two or more stocks
-- Scheduled data refresh
-- Historical metric charts
-- Earnings report ingestion
-- User watchlists
-- Authentication
-- Saved research collections
+After the MVP:
+
+- Single-company detail page
+- Functional watchlists
+- Saved comparisons
+- User authentication
+- Scheduled refresh
+- Earnings-calendar integration
+- Historical financial metric charts
+- SEC filing or earnings transcript ingestion
+- Inline AI citations per sentence
+- Export comparison to PDF
+- Shareable comparison links
 - Additional model providers
-- Model response evaluation
-- pgvector-based document retrieval
-- Frontend dashboard
-- Cloud monitoring
+- AI response evaluation
 - Rate limiting
-- Async background jobs
+- Background refresh jobs
+- Cloud monitoring
+- pgvector-based document retrieval
 
-These enhancements should only begin after the MVP success criteria are met.
+---
 
-## 29. Final Design Principle
+## 32. Final Design Principle
 
 StockLens AI should remain a small but complete system.
 
-The goal is not to use the largest number of technologies.
+The goal is not to maximize the number of technologies. Each selected technology must solve a clear engineering problem:
 
-The goal is to demonstrate that each selected technology solves a clear engineering problem:
-
-- PostgreSQL provides durable relational storage.
-- Redis avoids repeated expensive work.
+- React and TypeScript provide a maintainable interactive dashboard.
+- Spring Boot provides the application and API layer.
+- PostgreSQL provides durable relational storage and historical snapshots.
+- Redis avoids repeated external calls and AI generation.
 - Spring AI provides typed model integration.
 - Flyway makes schema changes reproducible.
-- Testcontainers verifies compatibility with real infrastructure.
-- Docker Compose makes local development repeatable.
-- GitHub Actions ensures the project remains buildable.
-- Codex accelerates implementation while tests and human review maintain correctness.
+- Testcontainers verifies behavior against real infrastructure.
+- Docker Compose makes local setup repeatable.
+- GitHub Actions keeps the project buildable.
+- Codex accelerates implementation while tests and human review preserve correctness.
+
+The final product should communicate its purpose within 30 seconds:
+
+> StockLens AI compares two companies, aggregates financial data and news, and generates a source-grounded AI research brief.
