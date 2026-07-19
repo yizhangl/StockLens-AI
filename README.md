@@ -1,9 +1,9 @@
 # StockLens AI
 
 StockLens AI is a full-stack application for comparing two public companies.
-Milestone 1 establishes the Spring Boot, React/Vite, PostgreSQL, Redis, Flyway,
-and CI foundation. Company comparison behavior is implemented in later
-milestones.
+The current backend foundation includes Spring Boot, PostgreSQL, Redis, Flyway,
+and Financial Modeling Prep-backed company profiles and latest market quotes.
+The comparison dashboard remains a later milestone.
 
 ## Prerequisites
 
@@ -16,9 +16,9 @@ not required.
 
 ## Environment
 
-The committed `.env.example` contains local development defaults and blank
-future provider placeholders. Docker Compose and the backend use compatible safe
-defaults, so a local `.env` is optional for the initial startup.
+The committed `.env.example` contains local development defaults and a blank
+`FMP_API_KEY`. Docker Compose and backend health can start without an FMP key;
+provider-backed stock requests require one.
 
 If you create `.env`, keep it local. It is ignored by Git and must never contain
 committed credentials.
@@ -48,6 +48,17 @@ Verify backend health:
 ```bash
 curl --fail --silent http://localhost:8080/actuator/health
 ```
+
+With `FMP_API_KEY` available in the backend process environment, retrieve and
+persist a company profile and latest quote without printing the key:
+
+```bash
+curl --fail --silent http://localhost:8080/api/v1/stocks/AAPL
+```
+
+The integration uses FMP's current `/stable/profile` and `/stable/quote`
+endpoints. Public or multi-user display remains subject to the applicable FMP
+subscription and data-display license.
 
 ## Start the Frontend
 

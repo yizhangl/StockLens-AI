@@ -31,10 +31,10 @@ class InfrastructureIntegrationTest {
     private StringRedisTemplate redisTemplate;
 
     @Test
-    void appliesOnlyTheBaselineMigrationAndConnectsToPostgres() {
-        Integer appliedBaselines = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '0' AND success",
-                Integer.class);
+    void appliesMilestoneTwoMigrationsAndConnectsToPostgres() {
+        List<String> appliedVersions = jdbcTemplate.queryForList(
+                "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank",
+                String.class);
         List<String> domainTables = jdbcTemplate.queryForList(
                 """
                 SELECT table_name
@@ -46,8 +46,8 @@ class InfrastructureIntegrationTest {
                 String.class);
 
         assertThat(jdbcTemplate.queryForObject("SELECT 1", Integer.class)).isEqualTo(1);
-        assertThat(appliedBaselines).isEqualTo(1);
-        assertThat(domainTables).isEmpty();
+        assertThat(appliedVersions).containsExactly("0", "1", "2");
+        assertThat(domainTables).containsExactly("company", "market_snapshot");
     }
 
     @Test
