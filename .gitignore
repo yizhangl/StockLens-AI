@@ -1,0 +1,23 @@
+# Operating system and editor metadata
+.DS_Store
+.idea/
+.vscode/
+*.iml
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Backend build output
+backend/target/
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
