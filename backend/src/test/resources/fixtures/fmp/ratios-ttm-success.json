@@ -1,0 +1,12 @@
+[
+  {
+    "symbol":"AAPL",
+    "priceToEarningsRatioTTM":31.2,
+    "priceToEarningsGrowthRatioTTM":2.4,
+    "priceToSalesRatioTTM":8.1,
+    "grossProfitMarginTTM":0.46,
+    "netProfitMarginTTM":0.24,
+    "debtToEquityRatioTTM":1.52,
+    "currentRatioTTM":0.89
+  }
+]

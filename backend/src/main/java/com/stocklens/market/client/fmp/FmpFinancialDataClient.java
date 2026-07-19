@@ -6,12 +6,21 @@ import com.stocklens.common.exception.FinancialProviderRateLimitedException;
 import com.stocklens.common.exception.StockNotFoundException;
 import com.stocklens.market.client.FinancialDataClient;
 import com.stocklens.market.client.fmp.dto.FmpCompanyProfileResponse;
+import com.stocklens.market.client.fmp.dto.FmpFinancialGrowthResponse;
+import com.stocklens.market.client.fmp.dto.FmpHistoricalPriceResponse;
+import com.stocklens.market.client.fmp.dto.FmpKeyMetricsTtmResponse;
 import com.stocklens.market.client.fmp.dto.FmpQuoteResponse;
+import com.stocklens.market.client.fmp.dto.FmpRatiosTtmResponse;
 import com.stocklens.market.client.model.CompanyProfileData;
+import com.stocklens.market.client.model.FinancialMetricsData;
+import com.stocklens.market.client.model.HistoricalPriceData;
 import com.stocklens.market.client.model.MarketSnapshotData;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpStatusCode;
@@ -26,6 +35,14 @@ public class FmpFinancialDataClient implements FinancialDataClient {
     private static final ParameterizedTypeReference<List<FmpCompanyProfileResponse>> PROFILE_TYPE =
             new ParameterizedTypeReference<>() {};
     private static final ParameterizedTypeReference<List<FmpQuoteResponse>> QUOTE_TYPE =
+            new ParameterizedTypeReference<>() {};
+    private static final ParameterizedTypeReference<List<FmpKeyMetricsTtmResponse>> KEY_METRICS_TYPE =
+            new ParameterizedTypeReference<>() {};
+    private static final ParameterizedTypeReference<List<FmpRatiosTtmResponse>> RATIOS_TYPE =
+            new ParameterizedTypeReference<>() {};
+    private static final ParameterizedTypeReference<List<FmpFinancialGrowthResponse>> GROWTH_TYPE =
+            new ParameterizedTypeReference<>() {};
+    private static final ParameterizedTypeReference<List<FmpHistoricalPriceResponse>> HISTORY_TYPE =
             new ParameterizedTypeReference<>() {};
 
     private final RestClient restClient;
@@ -58,19 +75,61 @@ public class FmpFinancialDataClient implements FinancialDataClient {
         return mapper.toMarketSnapshot(response, ticker, Instant.now(clock));
     }
 
+    @Override
+    public FinancialMetricsData getFinancialMetrics(String ticker) {
+        Instant retrievedAt = Instant.now(clock);
+        List<FmpRatiosTtmResponse> ratios = get("/ratios-ttm", ticker, Map.of(), RATIOS_TYPE);
+        if (ratios.isEmpty()) {
+            throw new DataUnavailableException("Financial ratios are unavailable for " + ticker + ".");
+        }
+        List<FmpKeyMetricsTtmResponse> keys = get("/key-metrics-ttm", ticker, Map.of(), KEY_METRICS_TYPE);
+        Map<String, Object> growthParameters = new LinkedHashMap<>();
+        growthParameters.put("period", "annual");
+        growthParameters.put("limit", 1);
+        List<FmpFinancialGrowthResponse> growth = get(
+                "/financial-growth", ticker, growthParameters, GROWTH_TYPE);
+        return mapper.toFinancialMetrics(
+                ratios.getFirst(),
+                keys.isEmpty() ? null : keys.getFirst(),
+                growth.isEmpty() ? null : growth.getFirst(),
+                ticker,
+                retrievedAt);
+    }
+
+    @Override
+    public List<HistoricalPriceData> getHistoricalPrices(
+            String ticker, LocalDate from, LocalDate to) {
+        Map<String, Object> parameters = new LinkedHashMap<>();
+        if (from != null) {
+            parameters.put("from", from);
+        }
+        parameters.put("to", to);
+        List<FmpHistoricalPriceResponse> responses = get(
+                "/historical-price-eod/full", ticker, parameters, HISTORY_TYPE);
+        return mapper.toHistoricalPrices(responses, ticker, from, to, Instant.now(clock));
+    }
+
     private <T> List<T> get(
             String path, String ticker, ParameterizedTypeReference<List<T>> responseType) {
+        return get(path, ticker, Map.of(), responseType);
+    }
+
+    private <T> List<T> get(
+            String path,
+            String ticker,
+            Map<String, Object> parameters,
+            ParameterizedTypeReference<List<T>> responseType) {
         requireApiKey();
         RuntimeException lastTransientFailure = null;
         for (int attempt = 1; attempt <= properties.getMaxAttempts(); attempt++) {
             try {
                 List<T> body = restClient
                         .get()
-                        .uri(uriBuilder -> uriBuilder
-                                .path(path)
-                                .queryParam("symbol", ticker)
-                                .queryParam("apikey", properties.getApiKey())
-                                .build())
+                        .uri(uriBuilder -> {
+                            uriBuilder.path(path).queryParam("symbol", ticker);
+                            parameters.forEach(uriBuilder::queryParam);
+                            return uriBuilder.queryParam("apikey", properties.getApiKey()).build();
+                        })
                         .retrieve()
                         .onStatus(this::isAuthenticationFailure, (request, response) -> {
                             throw new FinancialProviderException("Financial provider authentication failed.");

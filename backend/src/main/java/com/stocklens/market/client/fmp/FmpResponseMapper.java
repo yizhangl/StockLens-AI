@@ -2,14 +2,27 @@ package com.stocklens.market.client.fmp;
 
 import com.stocklens.common.exception.DataUnavailableException;
 import com.stocklens.market.client.fmp.dto.FmpCompanyProfileResponse;
+import com.stocklens.market.client.fmp.dto.FmpFinancialGrowthResponse;
+import com.stocklens.market.client.fmp.dto.FmpHistoricalPriceResponse;
+import com.stocklens.market.client.fmp.dto.FmpKeyMetricsTtmResponse;
 import com.stocklens.market.client.fmp.dto.FmpQuoteResponse;
+import com.stocklens.market.client.fmp.dto.FmpRatiosTtmResponse;
 import com.stocklens.market.client.model.CompanyProfileData;
+import com.stocklens.market.client.model.FinancialMetricsData;
+import com.stocklens.market.client.model.HistoricalPriceData;
 import com.stocklens.market.client.model.MarketSnapshotData;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.URI;
 import java.time.DateTimeException;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -70,6 +83,109 @@ public class FmpResponseMapper {
                 quoteTimestamp,
                 retrievedAt,
                 PROVIDER_NAME);
+    }
+
+    public FinancialMetricsData toFinancialMetrics(
+            FmpRatiosTtmResponse ratios,
+            FmpKeyMetricsTtmResponse keyMetrics,
+            FmpFinancialGrowthResponse growth,
+            String requestedTicker,
+            Instant retrievedAt) {
+        requiredSymbol(ratios.symbol(), requestedTicker);
+        if (keyMetrics != null) {
+            requiredSymbol(keyMetrics.symbol(), requestedTicker);
+        }
+        if (growth != null) {
+            requiredSymbol(growth.symbol(), requestedTicker);
+            if (growth.period() != null && !"FY".equalsIgnoreCase(growth.period())) {
+                throw unavailable("annual growth period");
+            }
+        }
+        if (ratios.priceToEarningsRatioTTM() == null
+                && ratios.priceToEarningsGrowthRatioTTM() == null
+                && ratios.priceToSalesRatioTTM() == null
+                && ratios.grossProfitMarginTTM() == null
+                && ratios.netProfitMarginTTM() == null
+                && ratios.debtToEquityRatioTTM() == null
+                && ratios.currentRatioTTM() == null) {
+            throw unavailable("financial ratios");
+        }
+        return new FinancialMetricsData(
+                requestedTicker,
+                metricDecimal(ratios.priceToEarningsRatioTTM(), "P/E ratio"),
+                null,
+                metricDecimal(ratios.priceToEarningsGrowthRatioTTM(), "PEG ratio"),
+                metricDecimal(ratios.priceToSalesRatioTTM(), "price-to-sales ratio"),
+                null,
+                metricDecimal(ratios.grossProfitMarginTTM(), "gross margin"),
+                metricDecimal(ratios.netProfitMarginTTM(), "net margin"),
+                keyMetrics == null ? null : metricDecimal(
+                        keyMetrics.returnOnEquityTTM(), "return on equity"),
+                growth == null ? null : metricDecimal(growth.revenueGrowth(), "revenue growth"),
+                growth == null ? null : metricDecimal(growth.netIncomeGrowth(), "earnings growth"),
+                metricDecimal(ratios.debtToEquityRatioTTM(), "debt-to-equity ratio"),
+                metricDecimal(ratios.currentRatioTTM(), "current ratio"),
+                null,
+                growth == null ? null : currency(growth.reportedCurrency()),
+                growth == null ? null : growth.date(),
+                retrievedAt,
+                PROVIDER_NAME);
+    }
+
+    public List<HistoricalPriceData> toHistoricalPrices(
+            List<FmpHistoricalPriceResponse> responses,
+            String requestedTicker,
+            LocalDate from,
+            LocalDate to,
+            Instant retrievedAt) {
+        List<HistoricalPriceData> result = new ArrayList<>();
+        Set<LocalDate> dates = new HashSet<>();
+        for (FmpHistoricalPriceResponse response : responses) {
+            requiredSymbol(response.symbol(), requestedTicker);
+            LocalDate date = response.date();
+            if (date == null || (from != null && date.isBefore(from)) || date.isAfter(to) || !dates.add(date)) {
+                throw unavailable("historical price date");
+            }
+            BigDecimal close = positivePrice(response.close(), "closing price");
+            Long volume = response.volume();
+            if (volume != null && volume < 0) {
+                throw unavailable("historical volume");
+            }
+            result.add(new HistoricalPriceData(
+                    requestedTicker,
+                    date,
+                    optionalPositivePrice(response.open(), "opening price"),
+                    optionalPositivePrice(response.high(), "high price"),
+                    optionalPositivePrice(response.low(), "low price"),
+                    close,
+                    null,
+                    volume,
+                    null,
+                    PROVIDER_NAME,
+                    retrievedAt));
+        }
+        result.sort(Comparator.comparing(HistoricalPriceData::tradingDate));
+        return List.copyOf(result);
+    }
+
+    private BigDecimal positivePrice(BigDecimal value, String field) {
+        BigDecimal price = decimal(value, field, 30, 8, false);
+        if (price.signum() <= 0) {
+            throw unavailable(field);
+        }
+        return price;
+    }
+
+    private BigDecimal optionalPositivePrice(BigDecimal value, String field) {
+        if (value == null) {
+            return null;
+        }
+        return positivePrice(value, field);
+    }
+
+    private BigDecimal metricDecimal(BigDecimal value, String field) {
+        BigDecimal rounded = value == null ? null : value.setScale(12, RoundingMode.HALF_UP);
+        return decimal(rounded, field, 30, 12, true);
     }
 
     private String requiredSymbol(String value, String requestedTicker) {

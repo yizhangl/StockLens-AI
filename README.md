@@ -2,7 +2,8 @@
 
 StockLens AI is a full-stack application for comparing two public companies.
 The current backend foundation includes Spring Boot, PostgreSQL, Redis, Flyway,
-and Financial Modeling Prep-backed company profiles and latest market quotes.
+and Financial Modeling Prep-backed company profiles, quotes, financial metrics,
+and historical daily prices.
 The comparison dashboard remains a later milestone.
 
 ## Prerequisites
@@ -56,9 +57,20 @@ persist a company profile and latest quote without printing the key:
 curl --fail --silent http://localhost:8080/api/v1/stocks/AAPL
 ```
 
-The integration uses FMP's current `/stable/profile` and `/stable/quote`
-endpoints. Public or multi-user display remains subject to the applicable FMP
-subscription and data-display license.
+Retrieve normalized financial metrics and a one-year daily price series:
+
+```bash
+curl --fail --silent http://localhost:8080/api/v1/stocks/AAPL/metrics
+curl --fail --silent 'http://localhost:8080/api/v1/stocks/AAPL/history?period=1Y'
+```
+
+Supported history periods are `1M`, `6M`, `1Y`, `5Y`, and `MAX`. The integration
+uses FMP stable profile, quote, TTM ratio/key-metric, annual financial-growth,
+and full EOD history endpoints. FMP's inspected full EOD response does not
+provide adjusted close, so historical returns use close. Forward P/E, revenue
+TTM, and beta remain null rather than being derived from unrelated fields.
+Endpoint access and public or multi-user display remain subject to the applicable
+FMP subscription and data-display license.
 
 ## Start the Frontend
 

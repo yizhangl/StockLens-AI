@@ -5,11 +5,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.stocklens.company.repository.CompanyRepository;
 import com.stocklens.market.client.FinancialDataClient;
 import com.stocklens.market.client.model.CompanyProfileData;
+import com.stocklens.market.client.model.FinancialMetricsData;
+import com.stocklens.market.client.model.HistoricalPriceData;
 import com.stocklens.market.client.model.MarketSnapshotData;
 import com.stocklens.market.repository.MarketSnapshotRepository;
 import com.stocklens.support.IntegrationTestContainers;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -105,6 +109,17 @@ class StockQueryServiceIntegrationTest {
                     Instant.parse("2026-07-18T19:00:0" + call + "Z"),
                     Instant.parse("2026-07-18T20:00:0" + call + "Z"),
                     "FMP");
+        }
+
+        @Override
+        public FinancialMetricsData getFinancialMetrics(String ticker) {
+            throw new UnsupportedOperationException("Not used by this test");
+        }
+
+        @Override
+        public List<HistoricalPriceData> getHistoricalPrices(
+                String ticker, LocalDate from, LocalDate to) {
+            throw new UnsupportedOperationException("Not used by this test");
         }
 
         int profileCalls() {

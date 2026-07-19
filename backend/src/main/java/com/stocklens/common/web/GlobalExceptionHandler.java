@@ -4,6 +4,7 @@ import com.stocklens.common.exception.DataUnavailableException;
 import com.stocklens.common.exception.FinancialProviderException;
 import com.stocklens.common.exception.FinancialProviderRateLimitedException;
 import com.stocklens.common.exception.InvalidTickerException;
+import com.stocklens.common.exception.InvalidPeriodException;
 import com.stocklens.common.exception.StockNotFoundException;
 import com.stocklens.common.response.ApiErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,6 +34,12 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiErrorResponse> handleInvalidTicker(
             InvalidTickerException exception, HttpServletRequest request) {
         return response(HttpStatus.BAD_REQUEST, "INVALID_TICKER", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(InvalidPeriodException.class)
+    ResponseEntity<ApiErrorResponse> handleInvalidPeriod(
+            InvalidPeriodException exception, HttpServletRequest request) {
+        return response(HttpStatus.BAD_REQUEST, "INVALID_PERIOD", exception.getMessage(), request);
     }
 
     @ExceptionHandler(StockNotFoundException.class)

@@ -5,9 +5,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.stocklens.common.exception.DataUnavailableException;
 import com.stocklens.market.client.fmp.dto.FmpCompanyProfileResponse;
+import com.stocklens.market.client.fmp.dto.FmpFinancialGrowthResponse;
+import com.stocklens.market.client.fmp.dto.FmpHistoricalPriceResponse;
+import com.stocklens.market.client.fmp.dto.FmpKeyMetricsTtmResponse;
 import com.stocklens.market.client.fmp.dto.FmpQuoteResponse;
+import com.stocklens.market.client.fmp.dto.FmpRatiosTtmResponse;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class FmpResponseMapperTest {
@@ -162,6 +168,122 @@ class FmpResponseMapperTest {
                         RETRIEVED_AT))
                 .isInstanceOf(DataUnavailableException.class)
                 .hasMessageContaining("company name");
+    }
+
+    @Test
+    void mapsDocumentedFmpMetricsWithoutDerivingUnsupportedValues() {
+        FmpRatiosTtmResponse ratios = new FmpRatiosTtmResponse(
+                "AAPL", decimal("31.2"), decimal("2.4"), decimal("8.1"), decimal("0.46"),
+                decimal("0.24"), decimal("1.52"), decimal("0.89"));
+        FmpKeyMetricsTtmResponse keys = new FmpKeyMetricsTtmResponse("AAPL", decimal("1.61"));
+        FmpFinancialGrowthResponse growth = new FmpFinancialGrowthResponse(
+                "AAPL", LocalDate.parse("2025-09-27"), "2025", "FY", "usd",
+                decimal("0.063"), decimal("0.195"));
+
+        var result = mapper.toFinancialMetrics(ratios, keys, growth, "AAPL", RETRIEVED_AT);
+
+        assertThat(result.peTtm()).isEqualByComparingTo("31.2");
+        assertThat(result.returnOnEquity()).isEqualByComparingTo("1.61");
+        assertThat(result.revenueGrowth()).isEqualByComparingTo("0.063");
+        assertThat(result.currency()).isEqualTo("USD");
+        assertThat(result.forwardPe()).isNull();
+        assertThat(result.revenueTtm()).isNull();
+        assertThat(result.beta()).isNull();
+    }
+
+    @Test
+    void mapsSortsAndValidatesHistoricalPrices() {
+        List<FmpHistoricalPriceResponse> responses = List.of(
+                history("AAPL", "2026-07-18", "210"),
+                history("AAPL", "2026-07-17", "200"));
+
+        var result = mapper.toHistoricalPrices(
+                responses, "AAPL", LocalDate.parse("2026-07-01"),
+                LocalDate.parse("2026-07-18"), RETRIEVED_AT);
+
+        assertThat(result).extracting(value -> value.tradingDate().toString())
+                .containsExactly("2026-07-17", "2026-07-18");
+        assertThat(result.getFirst().adjustedClose()).isNull();
+        assertThatThrownBy(() -> mapper.toHistoricalPrices(
+                        List.of(history("MSFT", "2026-07-18", "210")), "AAPL", null,
+                        LocalDate.parse("2026-07-18"), RETRIEVED_AT))
+                .isInstanceOf(DataUnavailableException.class)
+                .hasMessageContaining("unexpected symbol");
+        assertThatThrownBy(() -> mapper.toHistoricalPrices(
+                        List.of(history("AAPL", "2026-07-18", "-1")), "AAPL", null,
+                        LocalDate.parse("2026-07-18"), RETRIEVED_AT))
+                .isInstanceOf(DataUnavailableException.class)
+                .hasMessageContaining("closing price");
+    }
+
+    @Test
+    void rejectsAReportedRatioRowWithoutAnyMetricValues() {
+        assertThatThrownBy(() -> mapper.toFinancialMetrics(
+                        new FmpRatiosTtmResponse("AAPL", null, null, null, null, null, null, null),
+                        null, null, "AAPL", RETRIEVED_AT))
+                .isInstanceOf(DataUnavailableException.class)
+                .hasMessageContaining("financial ratios");
+    }
+
+    @Test
+    void acceptsPartialOptionalMetricGroups() {
+        FmpRatiosTtmResponse ratios = new FmpRatiosTtmResponse(
+                "AAPL", decimal("31.2"), null, null, null, null, null, null);
+
+        var result = mapper.toFinancialMetrics(ratios, null, null, "AAPL", RETRIEVED_AT);
+
+        assertThat(result.peTtm()).isEqualByComparingTo("31.2");
+        assertThat(result.returnOnEquity()).isNull();
+        assertThat(result.revenueGrowth()).isNull();
+        assertThat(result.reportedAt()).isNull();
+    }
+
+    @Test
+    void roundsProviderMetricPrecisionToThePersistenceScale() {
+        FmpRatiosTtmResponse ratios = new FmpRatiosTtmResponse(
+                "AAPL", decimal("31.123456789012789"), null, null, null, null, null, null);
+
+        var result = mapper.toFinancialMetrics(ratios, null, null, "AAPL", RETRIEVED_AT);
+
+        assertThat(result.peTtm()).isEqualByComparingTo("31.123456789013");
+    }
+
+    @Test
+    void handlesEmptyAndRejectsMissingOrDuplicateHistoricalRows() {
+        assertThat(mapper.toHistoricalPrices(
+                        List.of(), "AAPL", null, LocalDate.parse("2026-07-18"), RETRIEVED_AT))
+                .isEmpty();
+        assertThatThrownBy(() -> mapper.toHistoricalPrices(
+                        List.of(new FmpHistoricalPriceResponse(
+                                "AAPL", null, BigDecimal.ONE, BigDecimal.ONE,
+                                BigDecimal.ONE, BigDecimal.ONE, 1L)),
+                        "AAPL", null, LocalDate.parse("2026-07-18"), RETRIEVED_AT))
+                .isInstanceOf(DataUnavailableException.class)
+                .hasMessageContaining("historical price date");
+        assertThatThrownBy(() -> mapper.toHistoricalPrices(
+                        List.of(new FmpHistoricalPriceResponse(
+                                "AAPL", LocalDate.parse("2026-07-18"), BigDecimal.ONE,
+                                BigDecimal.ONE, BigDecimal.ONE, null, 1L)),
+                        "AAPL", null, LocalDate.parse("2026-07-18"), RETRIEVED_AT))
+                .isInstanceOf(DataUnavailableException.class)
+                .hasMessageContaining("closing price");
+        assertThatThrownBy(() -> mapper.toHistoricalPrices(
+                        List.of(
+                                history("AAPL", "2026-07-18", "1"),
+                                history("AAPL", "2026-07-18", "1")),
+                        "AAPL", null, LocalDate.parse("2026-07-18"), RETRIEVED_AT))
+                .isInstanceOf(DataUnavailableException.class)
+                .hasMessageContaining("historical price date");
+    }
+
+    private BigDecimal decimal(String value) {
+        return new BigDecimal(value);
+    }
+
+    private FmpHistoricalPriceResponse history(String symbol, String date, String close) {
+        BigDecimal price = decimal(close);
+        return new FmpHistoricalPriceResponse(
+                symbol, LocalDate.parse(date), price, price, price, price, 100L);
     }
 
     private FmpQuoteResponse quote(
