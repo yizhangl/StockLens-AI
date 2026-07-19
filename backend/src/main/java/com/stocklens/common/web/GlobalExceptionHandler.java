@@ -5,6 +5,9 @@ import com.stocklens.common.exception.FinancialProviderException;
 import com.stocklens.common.exception.FinancialProviderRateLimitedException;
 import com.stocklens.common.exception.InvalidTickerException;
 import com.stocklens.common.exception.InvalidPeriodException;
+import com.stocklens.common.exception.InvalidNewsLimitException;
+import com.stocklens.common.exception.NewsProviderException;
+import com.stocklens.common.exception.NewsProviderRateLimitedException;
 import com.stocklens.common.exception.StockNotFoundException;
 import com.stocklens.common.response.ApiErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,6 +21,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -40,6 +44,29 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiErrorResponse> handleInvalidPeriod(
             InvalidPeriodException exception, HttpServletRequest request) {
         return response(HttpStatus.BAD_REQUEST, "INVALID_PERIOD", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(InvalidNewsLimitException.class)
+    ResponseEntity<ApiErrorResponse> handleInvalidNewsLimit(
+            InvalidNewsLimitException exception, HttpServletRequest request) {
+        return response(HttpStatus.BAD_REQUEST, "INVALID_LIMIT", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ResponseEntity<ApiErrorResponse> handleTypeMismatch(
+            MethodArgumentTypeMismatchException exception, HttpServletRequest request) {
+        if ("limit".equals(exception.getName())) {
+            return response(
+                    HttpStatus.BAD_REQUEST,
+                    "INVALID_LIMIT",
+                    new InvalidNewsLimitException().getMessage(),
+                    request);
+        }
+        return response(
+                HttpStatus.BAD_REQUEST,
+                "INVALID_REQUEST",
+                "A request parameter has an invalid value.",
+                request);
     }
 
     @ExceptionHandler(StockNotFoundException.class)
@@ -77,6 +104,38 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_GATEWAY,
                 "FINANCIAL_PROVIDER_ERROR",
                 "Financial data is temporarily unavailable.",
+                request);
+    }
+
+    @ExceptionHandler(NewsProviderRateLimitedException.class)
+    ResponseEntity<ApiErrorResponse> handleNewsRateLimit(
+            NewsProviderRateLimitedException exception, HttpServletRequest request) {
+        ResponseEntity<ApiErrorResponse> base = response(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "RATE_LIMITED",
+                "News data is temporarily rate limited.",
+                request);
+        Long retryAfterSeconds = exception.getRetryAfterSeconds();
+        if (retryAfterSeconds == null) {
+            return base;
+        }
+        HttpHeaders headers = new HttpHeaders();
+        headers.putAll(base.getHeaders());
+        headers.set(HttpHeaders.RETRY_AFTER, retryAfterSeconds.toString());
+        return new ResponseEntity<>(base.getBody(), headers, base.getStatusCode());
+    }
+
+    @ExceptionHandler(NewsProviderException.class)
+    ResponseEntity<ApiErrorResponse> handleNewsProvider(
+            NewsProviderException exception, HttpServletRequest request) {
+        log.warn(
+                "News provider request failed requestId={} exceptionType={}",
+                requestId(request),
+                exception.getClass().getSimpleName());
+        return response(
+                HttpStatus.BAD_GATEWAY,
+                "NEWS_PROVIDER_ERROR",
+                "News data is temporarily unavailable.",
                 request);
     }
 
