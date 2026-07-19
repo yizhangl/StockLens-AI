@@ -1,0 +1,17 @@
+[
+  {
+    "symbol": "AAPL",
+    "name": "Apple Inc.",
+    "price": 268.47000000,
+    "changePercentage": -0.481890,
+    "change": -1.30000000,
+    "volume": 45140079,
+    "dayLow": 266.82,
+    "dayHigh": 272.29,
+    "yearHigh": 277.32,
+    "yearLow": 169.21,
+    "marketCap": 3967020108000.00,
+    "exchange": "NASDAQ",
+    "timestamp": 1762549202
+  }
+]

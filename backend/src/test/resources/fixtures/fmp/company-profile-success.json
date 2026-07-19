@@ -1,0 +1,16 @@
+[
+  {
+    "symbol": "AAPL",
+    "companyName": "Apple Inc.",
+    "currency": "USD",
+    "exchangeFullName": "NASDAQ Global Select",
+    "exchange": "NASDAQ",
+    "industry": "Consumer Electronics",
+    "website": "https://www.apple.com",
+    "description": "Apple designs, manufactures, and markets consumer technology products.",
+    "sector": "Technology",
+    "country": "US",
+    "image": "https://images.financialmodelingprep.com/symbol/AAPL.png",
+    "ignoredProviderField": true
+  }
+]

@@ -25,3 +25,12 @@ management:
   endpoint:
     health:
       show-details: never
+
+stocklens:
+  providers:
+    fmp:
+      api-key: ${FMP_API_KEY:}
+      base-url: ${FMP_BASE_URL:https://financialmodelingprep.com/stable}
+      connect-timeout: ${FMP_CONNECT_TIMEOUT:2s}
+      read-timeout: ${FMP_READ_TIMEOUT:5s}
+      max-attempts: ${FMP_MAX_ATTEMPTS:2}
