@@ -16,6 +16,7 @@ import com.stocklens.common.exception.StockNotFoundException;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.LocalDate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ClassPathResource;
@@ -152,11 +153,59 @@ class FmpFinancialDataClientTest {
         server.verify();
     }
 
+    @Test
+    void loadsAndNormalizesMetricsFromDocumentedStableEndpoints() {
+        expectJson("/ratios-ttm?symbol=AAPL&apikey=test-api-key", "ratios-ttm-success.json");
+        expectJson("/key-metrics-ttm?symbol=AAPL&apikey=test-api-key", "key-metrics-ttm-success.json");
+        expectJson(
+                "/financial-growth?symbol=AAPL&period=annual&limit=1&apikey=test-api-key",
+                "financial-growth-success.json");
+
+        var result = client.getFinancialMetrics("AAPL");
+
+        assertThat(result.peTtm()).isEqualByComparingTo("31.2");
+        assertThat(result.revenueGrowth()).isEqualByComparingTo("0.063");
+        assertThat(result.providerName()).isEqualTo("FMP");
+        server.verify();
+    }
+
+    @Test
+    void treatsMissingRatiosAsControlledUnavailableData() {
+        server.expect(once(), requestTo(
+                        "https://financialmodelingprep.com/stable/ratios-ttm?symbol=AAPL&apikey=test-api-key"))
+                .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+
+        assertThatThrownBy(() -> client.getFinancialMetrics("AAPL"))
+                .isInstanceOf(DataUnavailableException.class)
+                .hasMessageContaining("ratios");
+        server.verify();
+    }
+
+    @Test
+    void loadsHistoricalPricesWithExplicitBounds() {
+        expectJson(
+                "/historical-price-eod/full?symbol=AAPL&from=2026-07-01&to=2026-07-18&apikey=test-api-key",
+                "history-success.json");
+
+        var result = client.getHistoricalPrices(
+                "AAPL", LocalDate.parse("2026-07-01"), LocalDate.parse("2026-07-18"));
+
+        assertThat(result).hasSize(2);
+        assertThat(result.getFirst().tradingDate()).isEqualTo(LocalDate.parse("2026-07-17"));
+        server.verify();
+    }
+
     private void expectProfile(org.springframework.test.web.client.ResponseCreator response) {
         server.expect(once(), requestTo(profileUrl())).andRespond(response);
     }
 
     private String profileUrl() {
         return "https://financialmodelingprep.com/stable/profile?symbol=AAPL&apikey=test-api-key";
+    }
+
+    private void expectJson(String pathAndQuery, String fixture) {
+        server.expect(once(), requestTo("https://financialmodelingprep.com/stable" + pathAndQuery))
+                .andRespond(withSuccess(
+                        new ClassPathResource("fixtures/fmp/" + fixture), MediaType.APPLICATION_JSON));
     }
 }
