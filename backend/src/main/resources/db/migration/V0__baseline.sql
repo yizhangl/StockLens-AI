@@ -1,0 +1,2 @@
+-- Establish Flyway schema history for StockLens AI without creating domain tables.
+-- V1 remains reserved for the company table defined in docs/design.md Section 22.
