@@ -50,7 +50,7 @@ class NewsControllerTest {
                 .andExpect(header().string("X-Request-ID", "news-123"))
                 .andExpect(jsonPath("$.ticker").value("AAPL"))
                 .andExpect(jsonPath("$.limit").value(10))
-                .andExpect(jsonPath("$.providerName").value("FMP"))
+                .andExpect(jsonPath("$.providerName").value("YAHOO_FINANCE"))
                 .andExpect(jsonPath("$.articles[0].id").value(2))
                 .andExpect(jsonPath("$.articles[0].headline").value("Newest"))
                 .andExpect(jsonPath("$.articles[0].url").value("https://example.com/new"))
@@ -67,7 +67,7 @@ class NewsControllerTest {
     @Test
     void delegatesExplicitLimitAndSupportsEmptyResponse() throws Exception {
         when(newsQueryService.getRecentNews("AAPL", 3)).thenReturn(new NewsResponse(
-                "AAPL", 3, "FMP", Instant.parse("2026-07-18T20:00:00Z"),
+                "AAPL", 3, "YAHOO_FINANCE", Instant.parse("2026-07-18T20:00:00Z"),
                 List.of(), List.of()));
 
         mockMvc.perform(get("/api/v1/stocks/AAPL/news?limit=3"))
@@ -111,7 +111,7 @@ class NewsControllerTest {
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().string("Retry-After", "30"))
                 .andExpect(jsonPath("$.code").value("RATE_LIMITED"))
-                .andExpect(jsonPath("$.message").value("News data is temporarily rate limited."));
+                .andExpect(jsonPath("$.message").value("Recent news is temporarily rate limited."));
     }
 
     private void assertError(RuntimeException exception, int expectedStatus, String code)
@@ -131,7 +131,7 @@ class NewsControllerTest {
         return new NewsResponse(
                 "AAPL",
                 limit,
-                "FMP",
+                "YAHOO_FINANCE",
                 Instant.parse("2026-07-18T20:00:00Z"),
                 List.of(
                         new NewsArticleResponse(

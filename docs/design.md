@@ -1493,6 +1493,21 @@ The dashboard may return partial data when one non-critical section fails. Parti
 
 The MVP should use one financial-data provider and one news provider.
 
+For the MVP, Financial Modeling Prep is the financial-data provider for company
+profiles, current quotes, financial metrics, and historical prices. Yahoo
+Finance is the recent-news provider through its unofficial ticker-news JSON
+endpoint. These integrations remain separate behind `FinancialDataClient` and
+`NewsDataClient`; no news method belongs on the financial-data client.
+
+Yahoo Finance is an unofficial, replaceable news source suitable for local
+development, education, portfolio demonstration, and low-volume MVP use. It
+must not be described as an officially supported Yahoo developer API, a
+guaranteed production-stable contract, or a commercially licensed long-term
+source. Yahoo failures degrade through the controlled news-provider error
+contract. The backend does not scrape article pages or follow publisher links
+to construct descriptions. A future production deployment should evaluate a
+licensed news provider.
+
 Provider selection criteria:
 
 - Free-tier or low-cost availability
@@ -1808,8 +1823,9 @@ Required environment variables:
 
 ```text
 OPENAI_API_KEY
-FINANCIAL_API_KEY
-NEWS_API_KEY
+FMP_API_KEY
+FMP_BASE_URL
+YAHOO_FINANCE_BASE_URL
 POSTGRES_DB
 POSTGRES_USER
 POSTGRES_PASSWORD

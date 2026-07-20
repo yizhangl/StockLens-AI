@@ -54,7 +54,7 @@ class NewsQueryServiceTest {
     @Test
     void normalizesTickerUsesExistingCompanyAndMapsPartialWarning() {
         Company company = company();
-        NewsFetchResult fetch = new NewsFetchResult(List.of(), 1, "FMP", NOW);
+        NewsFetchResult fetch = new NewsFetchResult(List.of(), 1, "YAHOO_FINANCE", NOW);
         when(companyRepository.findByTicker("AAPL")).thenReturn(Optional.of(company));
         when(newsDataClient.getRecentNews("AAPL", 3)).thenReturn(fetch);
         when(persistenceService.persistAndLoadRecent(company, fetch, 3))
@@ -78,7 +78,7 @@ class NewsQueryServiceTest {
                 "AAPL", "Apple Inc.", "NASDAQ", null, null, null, null, null, null,
                 "AAPL", "USD", NOW);
         Company company = company();
-        NewsFetchResult fetch = new NewsFetchResult(List.of(), 0, "FMP", NOW);
+        NewsFetchResult fetch = new NewsFetchResult(List.of(), 0, "YAHOO_FINANCE", NOW);
         when(companyRepository.findByTicker("AAPL")).thenReturn(Optional.empty());
         when(financialDataClient.getCompanyProfile("AAPL")).thenReturn(profile);
         when(companyService.upsert(profile)).thenReturn(company);
@@ -88,7 +88,7 @@ class NewsQueryServiceTest {
 
         var response = service.getRecentNews("AAPL", 10);
 
-        assertThat(response.providerName()).isEqualTo("FMP");
+        assertThat(response.providerName()).isEqualTo("YAHOO_FINANCE");
         assertThat(response.warnings()).isEmpty();
         verify(companyService).upsert(profile);
     }

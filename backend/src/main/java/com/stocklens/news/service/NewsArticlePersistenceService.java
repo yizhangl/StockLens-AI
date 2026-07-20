@@ -1,6 +1,6 @@
 package com.stocklens.news.service;
 
-import com.stocklens.common.exception.DataUnavailableException;
+import com.stocklens.common.exception.NewsProviderException;
 import com.stocklens.company.domain.Company;
 import com.stocklens.company.repository.CompanyRepository;
 import com.stocklens.news.client.model.NewsArticleData;
@@ -49,7 +49,7 @@ public class NewsArticlePersistenceService {
             return new PersistenceResult(List.of(), candidateResult.skippedArticleCount());
         }
         if (candidateResult.candidates().isEmpty()) {
-            throw new DataUnavailableException(
+            throw new NewsProviderException(
                     "News provider response did not contain a valid article.");
         }
 

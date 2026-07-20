@@ -66,21 +66,21 @@ class NewsPersistenceIntegrationTest {
         persistenceService.persistAndLoadRecent(apple, new NewsFetchResult(List.of(
                 article("HTTPS://Example.COM/duplicate#first", "First copy", NOW),
                 article("https://example.com/duplicate#second", "Second copy", NOW)),
-                0, "FMP", NOW), 10);
+                0, "YAHOO_FINANCE", NOW), 10);
 
         assertThat(articleRepository.count()).isEqualTo(1);
         assertThat(relationshipCount()).isEqualTo(1);
     }
 
     @Test
-    void allMalformedUrlsProduceControlledUnavailableData() {
+    void allMalformedUrlsProduceControlledNewsProviderError() {
         Company apple = companyRepository.saveAndFlush(company("AAPL"));
 
         assertThatThrownBy(() -> persistenceService.persistAndLoadRecent(
                         apple,
                         fetch(article("javascript:alert(1)", "Unsafe", NOW)),
                         10))
-                .isInstanceOf(com.stocklens.common.exception.DataUnavailableException.class)
+                .isInstanceOf(com.stocklens.common.exception.NewsProviderException.class)
                 .hasMessageContaining("valid article");
         assertThat(articleRepository.count()).isZero();
         assertThat(relationshipCount()).isZero();
@@ -121,7 +121,7 @@ class NewsPersistenceIntegrationTest {
                 article("https://example.com/old", "Old", NOW.minusSeconds(300)),
                 article("https://example.com/new", "New", NOW),
                 article("https://example.com/middle", "Middle", NOW.minusSeconds(60))),
-                0, "FMP", NOW), 3);
+                0, "YAHOO_FINANCE", NOW), 3);
 
         var result = persistenceService.persistAndLoadRecent(
                 apple, fetch(article("https://example.com/new", "New", NOW)), 2);
@@ -176,7 +176,7 @@ class NewsPersistenceIntegrationTest {
     }
 
     private NewsFetchResult fetch(NewsArticleData article) {
-        return new NewsFetchResult(List.of(article), 0, "FMP", NOW);
+        return new NewsFetchResult(List.of(article), 0, "YAHOO_FINANCE", NOW);
     }
 
     private NewsArticleData article(String url, String headline, Instant publishedAt) {
@@ -189,7 +189,7 @@ class NewsPersistenceIntegrationTest {
                 publishedAt,
                 Set.of("AAPL"),
                 NOW,
-                "FMP");
+                "YAHOO_FINANCE");
     }
 
     private NewsArticle articleEntity(String externalId, String hash) {
@@ -202,6 +202,6 @@ class NewsPersistenceIntegrationTest {
                 NOW,
                 NOW,
                 hash,
-                "FMP");
+                "YAHOO_FINANCE");
     }
 }

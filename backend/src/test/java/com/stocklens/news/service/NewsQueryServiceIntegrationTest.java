@@ -140,13 +140,13 @@ class NewsQueryServiceIntegrationTest {
         @Override
         public NewsFetchResult getRecentNews(String ticker, int limit) {
             if (ticker.equals("EMPTY")) {
-                return new NewsFetchResult(List.of(), 0, "FMP", NOW);
+                return new NewsFetchResult(List.of(), 0, "YAHOO_FINANCE", NOW);
             }
             if (ticker.equals("PART")) {
                 return new NewsFetchResult(List.of(
                         article(ticker, "Valid article", "https://example.com/valid"),
                         article(ticker, "Unsafe article", "javascript:alert(1)")),
-                        0, "FMP", NOW);
+                        0, "YAHOO_FINANCE", NOW);
             }
             return new NewsFetchResult(List.of(article(
                     ticker,
@@ -154,7 +154,7 @@ class NewsQueryServiceIntegrationTest {
                     ticker.equals("AAPL")
                             ? " HTTPS://Example.COM/shared-story?edition=us#apple "
                             : "https://example.com/shared-story?edition=us#microsoft")),
-                    0, "FMP", NOW);
+                    0, "YAHOO_FINANCE", NOW);
         }
 
         private NewsArticleData article(String ticker, String headline, String url) {
@@ -167,7 +167,7 @@ class NewsQueryServiceIntegrationTest {
                     NOW,
                     Set.of(ticker),
                     NOW,
-                    "FMP");
+                    "YAHOO_FINANCE");
         }
     }
 }

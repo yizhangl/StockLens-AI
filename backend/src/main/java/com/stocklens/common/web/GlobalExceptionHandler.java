@@ -113,7 +113,7 @@ public class GlobalExceptionHandler {
         ResponseEntity<ApiErrorResponse> base = response(
                 HttpStatus.TOO_MANY_REQUESTS,
                 "RATE_LIMITED",
-                "News data is temporarily rate limited.",
+                "Recent news is temporarily rate limited.",
                 request);
         Long retryAfterSeconds = exception.getRetryAfterSeconds();
         if (retryAfterSeconds == null) {
@@ -129,13 +129,17 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiErrorResponse> handleNewsProvider(
             NewsProviderException exception, HttpServletRequest request) {
         log.warn(
-                "News provider request failed requestId={} exceptionType={}",
+                "News provider request failed requestId={} exceptionType={} reason={} causeType={}",
                 requestId(request),
-                exception.getClass().getSimpleName());
+                exception.getClass().getSimpleName(),
+                exception.getMessage(),
+                exception.getCause() == null
+                        ? "none"
+                        : exception.getCause().getClass().getSimpleName());
         return response(
                 HttpStatus.BAD_GATEWAY,
                 "NEWS_PROVIDER_ERROR",
-                "News data is temporarily unavailable.",
+                "Recent news is temporarily unavailable.",
                 request);
     }
 

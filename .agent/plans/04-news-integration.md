@@ -1,711 +1,522 @@
-# Milestone 4: News Integration
+# Milestone 4: Yahoo Finance News Integration
 
-## Status
+**Status:** Completed
+**Milestone:** 4 — News Integration
+**Created:** 2026-07-19
+**Last Updated:** 2026-07-19
+**Design References:** `docs/design.md` Sections 4.1, 8 (FR-6), 9, 11,
+13.5, 14–16, 18–19, 22–25, 28 (Milestone 4), and 29
 
-Completed on 2026-07-19, with the live FMP account limitation documented
-below. All automated acceptance criteria pass; the configured account returns
-HTTP 402 for the stock-news dataset, and the application returns the planned
-controlled `NEWS_PROVIDER_ERROR` without partial writes.
+## 1. Goal
 
-This plan covers Milestone 4 only. It was created after reading `AGENTS.md`,
-`docs/design.md`, `.agent/PLANS.md`, the completed Milestone 3 plan, and the
-complete current backend implementation and tests. The official Financial
-Modeling Prep (FMP) stable documentation and API Viewer were inspected before
-the provider DTOs were finalized.
+Replace the inaccessible Financial Modeling Prep stock-news adapter with a
+Yahoo Finance news-only adapter while preserving the completed provider-neutral
+Milestone 4 schema, persistence, deduplication, service, and public API.
 
-## Goal
+Financial Modeling Prep remains the sole financial-data provider for company
+profiles, quotes, metrics, and historical prices. Yahoo Finance is used only
+for recent company news through the existing `NewsDataClient` boundary.
 
-Add a provider-independent, durable recent-news slice for one normalized stock
-ticker. The slice retrieves company-specific news from FMP, validates and
-normalizes untrusted provider records, canonicalizes article URLs, prevents
-duplicate articles and duplicate company relationships, persists news in
-PostgreSQL, and exposes newest-first application DTOs at:
+Yahoo is an unofficial, replaceable MVP provider suitable for local
+development, education, portfolio demonstration, and low-volume use. It is not
+an official Yahoo developer API, a guaranteed production-stable contract, or a
+commercially licensed long-term source. A future production deployment should
+evaluate a licensed news provider.
 
-```http
-GET /api/v1/stocks/{ticker}/news?limit=10
-```
+## 2. Background and Current State
 
-The milestone is complete when the schema, provider adapter, persistence,
-service, endpoint, error behavior, and automated tests pass the full backend
-verification without live provider calls or committed credentials.
+Milestones 1–3 are complete. The repository was clean before this replacement
+task began. The current backend is a Java 21 / Spring Boot 4.1 modular monolith
+using PostgreSQL, Flyway, JPA validation, Redis connectivity, RestClient,
+JUnit/Mockito, MockRestServiceServer, and PostgreSQL Testcontainers.
 
-## Current Repository State
+The first Milestone 4 implementation is also complete and provider-independent
+outside its FMP adapter:
 
-- Milestones 1 through 3 are complete.
-- The backend is a Java 21 / Spring Boot 4.1 modular monolith.
-- PostgreSQL, Redis connectivity, Flyway, Actuator, consistent API errors,
-  request IDs, and Testcontainers are configured.
-- Existing migrations are `V0` through `V4`; `V4` creates historical prices.
-- `spring.jpa.hibernate.ddl-auto=validate` is active.
-- `Company`, `MarketSnapshot`, `FinancialMetricSnapshot`, and
-  `HistoricalPrice` are persisted.
-- `FinancialDataClient` and the FMP adapter provide profiles, quotes, metrics,
-  and history through provider-neutral models.
-- FMP already uses `FMP_API_KEY`, `FMP_BASE_URL`, bounded timeouts, and bounded
-  retries. News will reuse this configuration and the qualified FMP
-  `RestClient`.
-- Supporting stock, metrics, and history endpoints exist. No news package,
-  news migration, or news endpoint exists yet.
-- The worktree was clean before this plan was created.
+- `V5__create_news_tables.sql` creates generic `news_article` and
+  `news_article_company` tables with no FMP-specific column or constraint.
+- `NewsArticle`, `NewsArticleRepository`, `NewsArticlePersistenceService`,
+  `CanonicalArticleUrlService`, `NewsQueryService`, `NewsController`, and public
+  DTOs contain no FMP response types.
+- `NewsDataClient`, `NewsArticleData`, and `NewsFetchResult` form a meaningful
+  provider boundary and retain partial-record warning metadata.
+- URL canonicalization, SHA-256 hashing, conflict-safe inserts, multi-company
+  associations, newest-first queries, and the public endpoint already work.
+- Existing provider-neutral news tests cover persistence, canonicalization,
+  service behavior, controller behavior, and PostgreSQL constraints.
+- FMP-specific news code consists only of `FmpNewsDataClient`,
+  `FmpNewsResponseMapper`, `FmpNewsResponse`, their two tests, and one fixture.
+- The configured FMP account returns HTTP 402 for `/stable/news/stock`.
 
-## Scope
+V0–V5 are completed migrations and will not be edited. The generic V5 schema
+already supports Yahoo external IDs and provider name `YAHOO_FINANCE`.
 
-### Included
+## 3. Scope
 
-- `NewsArticle` persistence.
-- The `news_article_company` many-to-many join table.
-- Provider-neutral `NewsDataClient`, news result, and article data contracts.
-- FMP Search Stock News adapter using the stable company-specific endpoint.
-- FMP response DTO, validation, sanitization, and mapping.
-- Canonical HTTP(S) URL normalization and SHA-256 hashing.
-- Response-level and database-backed duplicate prevention.
-- Company resolution and recent-news application service.
-- `GET /api/v1/stocks/{ticker}/news?limit=10`.
-- Consistent news-specific validation, provider, rate-limit, and data errors.
-- Unit, mock HTTP, PostgreSQL Testcontainers, service, integration, and MVC
-  tests.
-- Safe optional local FMP smoke verification.
+### In Scope
 
-### Excluded
+- Preserve the provider-neutral news interface and durable model.
+- Add typed Yahoo configuration with an overridable base URL and bounded
+  connection/read timeouts and attempts.
+- Implement one Yahoo Finance `POST /xhr/ncp` news adapter.
+- Add DTOs and a mapper for only the verified Yahoo response fields.
+- Filter advertisements and non-story content, validate required fields, and
+  preserve partial valid results.
+- Request more ticker-scoped candidates than the public display limit.
+- Preserve URL canonicalization, hashing, database deduplication, company
+  relationships, and newest-first query behavior.
+- Preserve `GET /api/v1/stocks/{ticker}/news` and its existing default `10`,
+  minimum `1`, and maximum `20` public limit contract.
+- Replace only FMP-news-specific tests and fixtures with Yahoo tests/fixtures.
+- Update the design and local configuration documentation with the explicit
+  unofficial-provider trade-off.
+- Run credential-free automated verification and a limited live Yahoo smoke
+  test.
 
-- Aggregated comparison APIs or two-company orchestration.
-- Financial provider, metrics, or history changes unrelated to news.
-- AI, Spring AI, sentiment generation, or generated summaries.
-- Redis business caching or refresh orchestration.
-- Frontend work.
-- Authentication, deployment, or any Milestone 5+ functionality.
-- General-news or press-release fallback feeds.
-- External URL fetching, previews, or article-body downloads.
-- Changes to `docs/design.md`.
+### Out of Scope
 
-## Source-of-Truth and Design Alignment
+- `/api/v1/comparisons` or any two-stock comparison orchestration.
+- FMP profile, quote, metric, or historical-price changes.
+- AI, Spring AI, summaries, sentiment, topic classification, or web search.
+- Redis business caching, refresh endpoints, scheduling, or ingestion jobs.
+- Frontend dashboard work.
+- Authentication or deployment.
+- Article-page fetching, content scraping, redirect following, previews, or
+  server-side publisher requests.
+- Browser automation, Selenium, Playwright, Python, yfinance runtime code, or a
+  sidecar service.
+- Hidden fallback endpoints or Milestone 5+ behavior.
 
-- `AGENTS.md` governs workflow, security, architecture, and completion.
-- `docs/design.md` defines the approved product and data model. Relevant
-  sections are FR-6, 9, 11, 13.5, 14, 15.5-15.6, 16.4, 18, 19, 22, 23, 24,
-  27, 28 Milestone 4, and 29.
-- `.agent/PLANS.md` governs the content and maintenance of this plan.
-- The implementation remains a feature-oriented modular monolith, keeps FMP
-  DTOs within the FMP adapter, keeps HTTP concerns in the controller, and uses
-  services for validation and persistence orchestration.
-- PostgreSQL remains the durable source of truth. Redis is not used by this
-  milestone.
-- Flyway owns both news tables; JPA validates rather than creates the schema.
+## 4. Assumptions
 
-No design conflict was found.
+- The verified cookie-free Yahoo ticker-stream response is sufficient for the
+  low-volume MVP path.
+- The endpoint itself is ticker-scoped. Missing related-symbol metadata does
+  not make an otherwise valid article irrelevant; provider-neutral
+  `relatedSymbols` remains empty until durable company associations are loaded.
+- Yahoo `content.canonicalUrl.url` is the preferred article URL because the
+  live response supplies publisher URLs there. `clickThroughUrl.url` is used
+  only when the canonical URL is absent.
+- `content.summary` is the preferred optional description; the verified
+  `content.description` was blank in the live sample and is only a fallback.
+- `content.id` is the preferred optional external ID; top-level `id` is a
+  fallback. The live sample supplied equal UUID-like values in both locations.
+- Only `contentType=STORY` is accepted. Videos, slideshows, and promotional
+  cards are not part of the approved `NewsArticle` contract.
+- A truthy top-level `ad` marker means the record is an advertisement. This
+  matches the inspected current upstream yfinance filtering behavior.
+- The existing public limit range `1..20` is retained because it is already an
+  implemented and documented contract. Dashboard display remains three later.
+- No new production or test dependency is needed.
 
-## Verified FMP Contract and Provider Decision
+## 5. Open Questions / Blockers
 
-The official FMP stable documentation page and its API Viewer were inspected
-on 2026-07-18 for **Search Stock News API**.
+- None. The candidate endpoint returned HTTP 200 JSON without cookies,
+  authentication, a crumb, browser automation, or CAPTCHA.
+- Yahoo may change or restrict this unofficial endpoint without notice. That is
+  a known runtime risk rather than an implementation blocker.
 
-Verified request:
+## 6. Verified Yahoo Contract
 
-```http
-GET https://financialmodelingprep.com/stable/news/stock
-    ?symbols=AAPL
-    &page=0
-    &limit=20
-    &apikey={apiKey}
-```
+### Upstream implementation evidence
 
-Verified query parameters:
+The current upstream yfinance `TickerBase.get_news` implementation was
+inspected on 2026-07-19. It selects `latestNews`, posts a JSON service
+configuration to Yahoo's `/xhr/ncp` endpoint, reads
+`data.tickerStream.stream`, and removes records with a truthy top-level `ad`
+field. yfinance is not added to StockLens; it is contract evidence only.
 
-- `symbols` is required and documented as a string.
-- `from` and `to` are optional dates.
-- `page` is optional; the documented first page is `0`, with pages capped at
-  `100`.
-- `limit` is optional; the documentation states at most `250` records per
-  request.
-- This milestone sends one normalized ticker, `page=0`, and the already
-  validated application limit of `1..20`. It does not paginate beyond the first
-  page because the public endpoint contract returns at most 20 records.
-- No date bounds are sent for the recent-news endpoint.
+Reference:
+`https://github.com/ranaroussi/yfinance/blob/main/yfinance/base.py`
 
-Verified response root and fields:
-
-```json
-[
-  {
-    "symbol": "AAPL",
-    "publishedDate": "2026-06-06 14:13:36",
-    "publisher": "TechCrunch",
-    "title": "Article headline",
-    "image": "https://example.invalid/image.jpg",
-    "site": "techcrunch.com",
-    "text": "Article snippet",
-    "url": "https://techcrunch.com/article"
-  }
-]
-```
-
-Mapping decision:
-
-| FMP field | Application field | Rule |
-|---|---|---|
-| `symbol` | `relatedSymbols` | Required to match the requested ticker; mapped as a singleton because the verified row contains one string. |
-| `publishedDate` | `publishedAt` | Required; parse `yyyy-MM-dd HH:mm:ss`. FMP does not document an offset, so interpret as UTC and record this assumption. |
-| `publisher` | `sourceName` | Trimmed plain text; fall back to `site` when publisher is absent. |
-| `title` | `headline` | Required, trimmed, HTML-unescaped and tag-stripped plain text. |
-| `text` | `description` | Optional, trimmed, HTML-unescaped and tag-stripped plain text. Never replace it with the headline. |
-| `url` | `articleUrl` | Required; canonicalization and HTTP(S) validation occur in the application service. |
-| `site` | source fallback | Used only when `publisher` is blank. |
-| `image` | none | Not persisted or exposed in Milestone 4. |
-| none | `externalId` | `null`; the verified FMP response supplies no stable article ID. |
-
-The verified response does not contain sentiment, topics, an external article
-ID, or an array of related symbols. No such fields will be invented. The
-provider-neutral model keeps `externalId` nullable and represents related
-symbols as a set so a future adapter can supply them. Multi-company persistence
-is achieved when the same canonical article is returned by separate
-single-ticker requests.
-
-## Application Contracts
-
-### Provider boundary
-
-```java
-public interface NewsDataClient {
-    NewsFetchResult getRecentNews(String ticker, int limit);
-}
-```
-
-`NewsArticleData` contains only application fields: nullable external ID,
-headline, nullable source name, raw article URL, nullable description,
-publication timestamp, related symbols, retrieval timestamp, and provider
-name. `NewsFetchResult` also carries the provider name, retrieval timestamp,
-and a sanitized skipped-record count so partial provider success can be
-represented without leaking FMP DTOs.
-
-### Public endpoint
+### Verified live request
 
 ```http
-GET /api/v1/stocks/{ticker}/news?limit=10
-```
+POST https://finance.yahoo.com/xhr/ncp
+    ?queryRef=latestNews
+    &serviceKey=ncp_fin
+Accept: application/json
+Content-Type: application/json
+Content-Length: 50
+User-Agent: StockLens-AI/1.0 (educational project)
 
-Successful response shape:
-
-```json
 {
-  "ticker": "AAPL",
-  "limit": 10,
-  "providerName": "FMP",
-  "retrievedAt": "2026-07-18T20:00:00Z",
-  "articles": [
-    {
-      "id": 42,
-      "headline": "Article headline",
-      "sourceName": "TechCrunch",
-      "url": "https://techcrunch.com/article",
-      "publishedAt": "2026-06-06T14:13:36Z",
-      "description": "Article snippet",
-      "relatedSymbols": ["AAPL"]
-    }
-  ],
-  "warnings": []
+  "serviceConfig": {
+    "snippetCount": 10,
+    "s": ["AAPL"]
+  }
 }
 ```
 
-- The default limit is `10`; accepted values are `1..20` inclusive.
-- `limit` reports the applied/requested value.
-- Articles are ordered by `publishedAt DESC, id DESC`.
-- `id` is the durable application article ID and can become a local source
-  reference in a later milestone.
-- Public DTOs contain no entities, join objects, FMP DTOs, raw JSON, provider
-  image field, or credentials.
-- A valid empty provider list is a successful response with `articles: []` and
-  no warning. The company must still be resolvable.
-- A mixed valid/invalid result returns valid articles plus one general warning
-  containing only the number of skipped records.
+The read-only probe returned HTTP `200`, content type `application/json`, no
+redirect, and ten stream records. Live application testing additionally showed
+that Yahoo returns HTTP `502` for a chunked body, so the adapter serializes the
+small typed request to bytes and sends the exact fixed-length payload. No
+cookie, authorization header, crumb, browser identifier, or secret was sent.
 
-## Error Behavior
-
-| Condition | HTTP/code | Behavior |
-|---|---|---|
-| Invalid ticker | `400 INVALID_TICKER` | Existing ticker validation. |
-| Limit outside `1..20` or non-numeric | `400 INVALID_LIMIT` | Safe application message. |
-| Unknown company, when profile lookup can determine it | `404 STOCK_NOT_FOUND` | Existing behavior. |
-| Missing FMP key | `503 DATA_UNAVAILABLE` | No HTTP request; safe message. |
-| FMP 401/403 | `502 NEWS_PROVIDER_ERROR` | No raw body or credential leakage. |
-| FMP 429 | `429 RATE_LIMITED` | Preserve a valid numeric `Retry-After` header. |
-| FMP 5xx or timeout after bounded retry | `502 NEWS_PROVIDER_ERROR` | Bounded by existing FMP attempt configuration. |
-| Malformed JSON | `502 NEWS_PROVIDER_ERROR` | No retry for unreadable data. |
-| FMP 404 | `404 STOCK_NOT_FOUND` | Where the provider explicitly supplies it. |
-| Mixed valid/invalid rows | `200` plus warning | Preserve valid rows and log only counts/reasons without content. |
-| All non-empty rows invalid | `503 DATA_UNAVAILABLE` | Controlled provider-data error. |
-| Valid empty list | `200` with empty articles | Empty news is not the same as malformed data. |
-| Malformed/unsafe article URL | skip row, then apply mixed/all-invalid policy | Only absolute HTTP(S) article URLs are accepted. |
-
-Spring's query-parameter conversion error for non-numeric `limit` will be
-mapped to the same `INVALID_LIMIT` response. Unexpected persistence errors
-remain safe `INTERNAL_ERROR` responses; normal uniqueness races are prevented
-with PostgreSQL `ON CONFLICT DO NOTHING` writes and database constraints.
-
-## Database Migration
-
-Add one migration matching the sequence reserved by `docs/design.md`:
+### Verified response shape
 
 ```text
-V5__create_news_tables.sql
+root: object
+data: object
+data.tickerStream: object
+data.tickerStream.stream: array
+stream item:
+  id: string
+  ad: optional untyped marker
+  content:
+    id: string
+    contentType: string
+    title: string
+    description: string
+    summary: string
+    pubDate: ISO-8601 string
+    provider:
+      displayName: string
+    canonicalUrl:
+      url: string
+    clickThroughUrl:
+      url: string
 ```
 
-It creates both tables; it does not split the join table into `V6`, because
-the design reserves `V6` for comparison briefs.
+Other observed fields such as thumbnails, display time, hosted flags, provider
+URLs/IDs, URL locale metadata, premium flags, and editor metadata are ignored.
+The live response did not provide related-symbol metadata. All ten live records
+were `STORY`; the first probe contained no advertisement record.
 
-### `news_article`
+### Exact field mapping
 
-| Column | Type/nullability | Constraint |
+| Yahoo field | Application field | Rule |
 |---|---|---|
-| `id` | identity bigint, not null | primary key |
-| `external_id` | varchar(255), nullable | provider ID when available |
-| `headline` | varchar(1000), not null | trimmed value must be nonblank |
-| `source_name` | varchar(255), nullable | trimmed value nonblank when present |
-| `article_url` | varchar(2048), not null | trimmed value must be nonblank |
-| `description` | text, nullable | normalized plain text |
-| `published_at` | timestamptz, not null | verified provider field |
-| `retrieved_at` | timestamptz, not null | application `Clock` |
-| `url_hash` | varchar(64), not null | unique lowercase SHA-256 hex |
-| `provider_name` | varchar(64), not null | nonblank, `FMP` for this adapter |
+| `content.id`, then item `id` | `externalId` | Optional trimmed value, maximum 255 characters. |
+| `content.title` | `headline` | Required normalized plain text, maximum 1000 characters. |
+| `content.provider.displayName` | `sourceName` | Optional normalized plain text, maximum 255 characters. |
+| `content.canonicalUrl.url`, then `content.clickThroughUrl.url` | `articleUrl` | Required raw URL passed to centralized HTTP(S) canonicalization. |
+| `content.summary`, then `content.description` | `description` | Optional normalized plain text; never generated from the headline. |
+| `content.pubDate` | `publishedAt` | Required ISO-8601 instant; never replaced with retrieval time. |
+| none | `relatedSymbols` | Empty at provider boundary; the ticker-scoped company relationship supplies public related tickers after persistence. |
+| application `Clock` | `retrievedAt` | One deterministic timestamp per provider response. |
+| constant | `providerName` | `YAHOO_FINANCE`. |
 
-Constraints and indexes:
+Filtering rules:
 
-- Unique `url_hash` constraint.
-- Partial unique index on `(provider_name, external_id)` when
-  `external_id IS NOT NULL`.
-- Check constraints for required nonblank fields and 64-character lowercase
-  hexadecimal hash format.
-- Index on `(published_at DESC, id DESC)`.
-- The unique URL constraint itself supports URL-hash lookup; no duplicate
-  index is added.
+- Skip a record when top-level `ad` is truthy.
+- Skip a record whose `contentType` is not `STORY`.
+- Skip a record with missing content, headline, URL, or publication timestamp.
+- Keep valid records when other records are invalid and report only the skipped
+  count.
+- A present array containing no valid records returns controlled
+  `NEWS_PROVIDER_ERROR`.
+- A valid empty stream returns HTTP 200 with an empty application list.
+- Missing `data`, missing/null `tickerStream`, or missing/null `stream` is an
+  unusable contract and returns controlled `NEWS_PROVIDER_ERROR`.
 
-### `news_article_company`
+## 7. Acceptance Criteria
 
-| Column | Constraint |
-|---|---|
-| `news_article_id` | FK to `news_article(id)` with `ON DELETE CASCADE` |
-| `company_id` | FK to `company(id)` with `ON DELETE CASCADE` |
+- [x] FMP remains unchanged for financial data and contains no news method.
+- [x] All obsolete FMP news client, DTO, mapper, fixture, tests, and bean wiring
+  are removed.
+- [x] `NewsDataClient` remains provider-independent and is implemented by the
+  Yahoo adapter only.
+- [x] Yahoo configuration uses typed properties and an overridable base URL;
+  no key, cookie, crumb, browser state, or personal header is introduced.
+- [x] The adapter sends the verified POST/query/body/headers and validates JSON
+  content type without following redirects.
+- [x] Yahoo mapping implements only the exact verified fields and filters ads
+  and non-story content.
+- [x] Valid empty, malformed contract, partial invalid, and all-invalid results
+  remain distinct.
+- [x] The V5 schema and all V0–V5 migrations remain unchanged.
+- [x] Repeated requests remain idempotent and one article can relate to multiple
+  companies.
+- [x] Public API remains provider-independent, defaults to 10, accepts 1..20,
+  returns newest-first results, and reports `YAHOO_FINANCE`.
+- [x] Yahoo 429 returns `RATE_LIMITED`; auth/other 4xx, 5xx, timeout, reset,
+  redirect, HTML, malformed JSON, and contract failures return safe
+  `NEWS_PROVIDER_ERROR`.
+- [x] Unit, mock HTTP, MVC, service, persistence, Flyway, and Hibernate
+  validation tests pass without live Yahoo access or FMP credentials.
+- [x] `cd backend && ./mvnw clean verify` passes.
+- [x] A safe live AAPL/MSFT smoke test is recorded honestly.
+- [x] Design disclosure, complete diff, secrets/generated-file, scraping,
+  endpoint-host, DTO-leakage, and Milestone 5 scope reviews pass.
 
-- Composite primary key `(news_article_id, company_id)` prevents duplicate
-  relationships.
-- Add `(company_id, news_article_id)` for company-first recent-news lookup.
-- One news row may be associated with multiple companies.
-
-## URL Canonicalization and Duplicate Prevention
-
-Central canonicalization rules:
-
-1. Trim surrounding whitespace.
-2. Parse as an absolute URI.
-3. Require `http` or `https`, a host, and no user-info component.
-4. Lowercase the scheme and host using locale-independent rules.
-5. Preserve port, raw path, and raw query exactly.
-6. Remove the fragment.
-7. Do not remove or reorder query parameters.
-8. Compute lowercase SHA-256 hex from the UTF-8 canonical URL.
-
-Malformed or unsafe URLs become invalid provider records. Equivalent URLs
-differing only in scheme/host case, fragment, or surrounding whitespace share
-one hash. Query-string differences remain distinct because no provider-backed
-tracking-parameter rule has been verified.
-
-Deduplication order:
-
-1. `(providerName, externalId)` when a nonblank stable external ID exists.
-2. Canonical URL hash.
-
-The service collapses duplicate provider rows before writing. PostgreSQL
-uniqueness is still authoritative. Article and join inserts use
-`ON CONFLICT DO NOTHING`, then load the authoritative row, so repeated and
-concurrent requests do not depend solely on in-memory checks. Existing article
-content may be refreshed without changing its durable identity fields. The
-join insert is separately idempotent, enabling one article to acquire another
-company association.
-
-## Security and Content Handling
-
-- Reuse `FMP_API_KEY` and `FMP_BASE_URL`; add no key or configuration namespace.
-- Never log a request URL or query string containing `apikey`.
-- Log only ticker-independent event type, attempt/count, and exception type;
-  never raw provider bodies, full article content, or credentials.
-- Treat provider JSON and article URLs as untrusted.
-- Convert `title`, `publisher`/`site`, and `text` to plain text using existing
-  Spring HTML utilities plus tag stripping and whitespace normalization. This
-  adds no dependency.
-- Do not fetch, render, or follow returned article/image URLs.
-- Test fixtures use only `test-api-key` and sanitized/example content.
-
-## Expected Files
+## 8. Expected Files
 
 ### Create
 
-- `.agent/plans/04-news-integration.md`
-- `backend/src/main/resources/db/migration/V5__create_news_tables.sql`
-- `backend/src/main/java/com/stocklens/common/exception/InvalidNewsLimitException.java`
-- `backend/src/main/java/com/stocklens/common/exception/NewsProviderException.java`
-- `backend/src/main/java/com/stocklens/common/exception/NewsProviderRateLimitedException.java`
-- `backend/src/main/java/com/stocklens/news/client/NewsDataClient.java`
-- `backend/src/main/java/com/stocklens/news/client/model/NewsArticleData.java`
-- `backend/src/main/java/com/stocklens/news/client/model/NewsFetchResult.java`
-- `backend/src/main/java/com/stocklens/news/client/fmp/FmpNewsDataClient.java`
-- `backend/src/main/java/com/stocklens/news/client/fmp/FmpNewsResponseMapper.java`
-- `backend/src/main/java/com/stocklens/news/client/fmp/dto/FmpNewsResponse.java`
-- `backend/src/main/java/com/stocklens/news/domain/NewsArticle.java`
-- `backend/src/main/java/com/stocklens/news/repository/NewsArticleRepository.java`
-- `backend/src/main/java/com/stocklens/news/service/CanonicalArticleUrlService.java`
-- `backend/src/main/java/com/stocklens/news/service/NewsArticlePersistenceService.java`
-- `backend/src/main/java/com/stocklens/news/service/NewsQueryService.java`
-- `backend/src/main/java/com/stocklens/news/controller/NewsController.java`
-- `backend/src/main/java/com/stocklens/news/dto/NewsArticleResponse.java`
-- `backend/src/main/java/com/stocklens/news/dto/NewsResponse.java`
-- `backend/src/main/java/com/stocklens/news/dto/NewsWarningResponse.java`
-- `backend/src/test/resources/fixtures/fmp/news-success.json`
-- Focused tests under `backend/src/test/java/com/stocklens/news/...` for the
-  mapper, client, URL canonicalization, repository/persistence, query service,
-  full service integration, and controller.
+- `backend/src/main/java/com/stocklens/news/client/yahoo/YahooFinanceNewsClientConfiguration.java`
+- `backend/src/main/java/com/stocklens/news/client/yahoo/YahooFinanceNewsProperties.java`
+- `backend/src/main/java/com/stocklens/news/client/yahoo/YahooFinanceNewsDataClient.java`
+- `backend/src/main/java/com/stocklens/news/client/yahoo/YahooFinanceNewsResponseMapper.java`
+- `backend/src/main/java/com/stocklens/news/client/yahoo/dto/YahooFinanceNewsRequest.java`
+- `backend/src/main/java/com/stocklens/news/client/yahoo/dto/YahooFinanceNewsResponse.java`
+- `backend/src/test/java/com/stocklens/news/client/yahoo/YahooFinanceNewsDataClientTest.java`
+- `backend/src/test/java/com/stocklens/news/client/yahoo/YahooFinanceNewsResponseMapperTest.java`
+- `backend/src/test/resources/fixtures/yahoo/news-success.json`
 
 ### Modify
 
+- `.agent/plans/04-news-integration.md`
+- `docs/design.md` — only provider/disclosure and local environment text.
+- `backend/src/main/resources/application.yml`
+- `.env.example`
+- `README.md`
 - `backend/src/main/java/com/stocklens/common/web/GlobalExceptionHandler.java`
-- `backend/src/test/java/com/stocklens/InfrastructureIntegrationTest.java`
-- The execution plan progress, decision, evidence, and completion sections as
-  work proceeds.
+- `backend/src/main/java/com/stocklens/news/service/NewsArticlePersistenceService.java`
+- Existing provider-neutral news tests whose fixture provider value is `FMP`.
 
-No production dependency, application configuration, existing entity, or
-existing provider interface change is expected.
+### Delete
 
-## Dependencies and Configuration
+- `backend/src/main/java/com/stocklens/news/client/fmp/FmpNewsDataClient.java`
+- `backend/src/main/java/com/stocklens/news/client/fmp/FmpNewsResponseMapper.java`
+- `backend/src/main/java/com/stocklens/news/client/fmp/dto/FmpNewsResponse.java`
+- `backend/src/test/java/com/stocklens/news/client/fmp/FmpNewsDataClientTest.java`
+- `backend/src/test/java/com/stocklens/news/client/fmp/FmpNewsResponseMapperTest.java`
+- `backend/src/test/resources/fixtures/fmp/news-success.json`
 
-- No new production or test dependency is required.
-- Reuse Spring Web MVC/Jackson/JPA, PostgreSQL, JUnit, Mockito, MockRestService,
-  and Testcontainers already present.
-- Reuse `stocklens.providers.fmp` properties and the qualified `fmpRestClient`.
-- No Redis, AI, or new environment variable is introduced.
+The list will be updated if implementation proves an item unnecessary. No
+migration, dependency manifest, frontend, CI, Compose, or Milestone 1–3
+production file is expected to change.
 
-## Implementation Phases
+## 9. API / Schema / Configuration Changes
 
-### Phase 1: Schema and domain mapping
+### API
 
-1. Add `V5__create_news_tables.sql` with both tables, constraints, foreign
-   keys, and indexes.
-2. Add the `NewsArticle` JPA entity and many-to-many company mapping.
-3. Add repository lookups, conflict-safe native insert/association operations,
-   and a two-step limited recent-query that avoids collection-fetch pagination.
-4. Update the infrastructure migration assertion to expect V5 and both tables.
-5. Add PostgreSQL integration tests for JPA/schema validation, URL and provider
-   ID uniqueness, foreign keys, relationship uniqueness, ordering, limits,
-   idempotency, and multi-company association.
+Keep:
 
-### Phase 2: Provider-neutral boundary and URL normalization
-
-1. Add `NewsDataClient`, `NewsArticleData`, and `NewsFetchResult`.
-2. Add centralized canonical URL construction and SHA-256 hashing.
-3. Test whitespace, case normalization, fragments, deterministic/equivalent
-   hashes, distinct query strings, malformed URIs, unsafe schemes, and user
-   info.
-
-### Phase 3: FMP news adapter
-
-1. Add the exact verified FMP DTO.
-2. Add per-record validation, UTC publication-time parsing, provider symbol
-   validation, plain-text normalization, optional-value handling, ordering,
-   and skipped-record accounting.
-3. Add the FMP HTTP adapter using `/news/stock`, `symbols`, `page=0`, `limit`,
-   and `apikey`, reusing FMP configuration/timeouts/retries.
-4. Translate auth, 404, 429, 4xx, 5xx, timeout, missing key, malformed JSON,
-   valid empty, partial invalid, and all-invalid cases without exposing raw data.
-5. Add sanitized fixtures and mock HTTP/mapper tests. Automated tests make no
-   live request.
-
-### Phase 4: Persistence and recent-news services
-
-1. Resolve a normalized company from PostgreSQL; if absent, use the existing
-   provider-neutral profile client and `CompanyService` so unknown tickers can
-   be determined.
-2. Validate limit before provider or persistence work.
-3. Fetch provider data, canonicalize and hash each URL, add URL failures to the
-   sanitized skipped count, and fail only when a non-empty response has no
-   valid record.
-4. Collapse duplicates by external ID then URL hash.
-5. Upsert articles and company relationships transactionally with DB-backed
-   conflict handling.
-6. Reload at most the requested number of associated articles newest first and
-   map entities to public DTOs.
-7. Preserve a valid empty list and emit a general warning for partial success.
-
-### Phase 5: Controller and API errors
-
-1. Add `NewsController` under the existing stock base path.
-2. Add news response records.
-3. Add `INVALID_LIMIT`, `NEWS_PROVIDER_ERROR`, and news rate-limit handling to
-   the existing global error contract.
-4. Cover default/explicit/invalid limit, ticker, not-found, empty, provider
-   errors, request IDs, ordering, and public field boundaries with MVC tests.
-
-### Phase 6: End-to-end automated verification
-
-1. Add a Spring Boot/Testcontainers service integration test with fake
-   financial and news providers.
-2. Verify lowercase/whitespace ticker normalization, company resolution,
-   default/custom limits, empty results, repeat idempotency, partial records,
-   newest-first ordering, and multi-company association.
-3. Run focused tests while implementing, then the required full command.
-
-### Phase 7: Safe manual verification and completion
-
-1. If a local `FMP_API_KEY` is already available, start dependencies/backend
-   without printing the key and call `/api/v1/stocks/AAPL/news?limit=3`.
-2. Verify up to three newest-first articles, required public fields, no key in
-   response/logs, and idempotent repeated persistence.
-3. If account access or credentials prevent the smoke test, record the exact
-   limitation; never fabricate live output.
-4. Review the complete diff for scope, secrets, generated files, DTO leakage,
-   HTML/URL safety, uniqueness, ordering, controller logic, and Milestone 5+
-   work.
-5. Update this plan with results and completion status.
-
-## Testing Strategy
-
-### Unit tests
-
-- Exact FMP field mapping and UTC timestamp parsing.
-- Required headline, URL, symbol, and publication timestamp validation.
-- Optional source/description and absent external ID.
-- Plain-text handling of actual and encoded HTML.
-- Mixed valid/invalid and all-invalid provider records.
-- URL canonicalization/hash equivalence and non-equivalence.
-- Limit/ticker validation and query-service orchestration.
-- Duplicate input collapse and warning counts.
-- Safe provider-error translation.
-
-### Mock HTTP provider tests
-
-- Successful multi-row list response and request URI parameters.
-- Empty list.
-- Malformed JSON.
-- Authentication, 404, 429 with/without valid `Retry-After`, other 4xx.
-- Bounded 5xx and timeout retry.
-- Missing key causes no request.
-- Partial and all malformed row behavior using sanitized fixtures/data.
-
-### PostgreSQL Testcontainers tests
-
-- V5 is applied and Hibernate validates the exact schema.
-- Unique URL hash and partial provider/external-ID uniqueness.
-- Article/company foreign keys and composite relationship uniqueness.
-- Recent IDs obey `publishedAt DESC, id DESC` and requested page size.
-- Repeated persistence remains one article/one relationship.
-- One article can be associated with two companies.
-
-### MVC tests
-
-- Response fields and newest-first article contract.
-- Default and explicit limit delegation.
-- `INVALID_TICKER`, `INVALID_LIMIT`, `STOCK_NOT_FOUND`, `DATA_UNAVAILABLE`,
-  `RATE_LIMITED`, `NEWS_PROVIDER_ERROR`, and safe unexpected errors.
-- Empty list and partial warning response.
-- No persistence/provider internals in JSON.
-
-## Validation Commands
-
-Focused commands may be used during implementation:
-
-```bash
-cd backend && ./mvnw -Dtest='com.stocklens.news.**' test
-cd backend && ./mvnw test
+```http
+GET /api/v1/stocks/{ticker}/news?limit=10
 ```
 
-Required milestone validation:
+- Default `10`, accepted `1..20`.
+- Success contract remains `ticker`, `limit`, `providerName`, `retrievedAt`,
+  `articles`, and `warnings`.
+- `providerName` becomes `YAHOO_FINANCE`.
+- A valid empty Yahoo stream is HTTP 200 with empty arrays.
+- Public DTOs expose no Yahoo wrapper, raw metadata, hashes, cookies, or
+  provider transport fields.
+
+### Database
+
+- No migration change. V5 is already generic and must remain byte-for-byte
+  unchanged.
+- Existing URL hash and provider/external-ID uniqueness remain authoritative.
+- The generic provider value for new rows is `YAHOO_FINANCE`; no provider-name
+  CHECK constraint is added.
+
+### Configuration
+
+Add prefix `stocklens.providers.yahoo-finance-news`:
+
+| Property | Environment variable | Default |
+|---|---|---|
+| base URL | `YAHOO_FINANCE_BASE_URL` | `https://finance.yahoo.com` |
+| connect timeout | `YAHOO_FINANCE_CONNECT_TIMEOUT` | `2s` |
+| read timeout | `YAHOO_FINANCE_READ_TIMEOUT` | `5s` |
+| maximum attempts | `YAHOO_FINANCE_MAX_ATTEMPTS` | `2` total attempts |
+
+No Yahoo key exists. The JDK client explicitly does not follow redirects. The
+base URL is overridden by mock HTTP tests.
+
+### Dependencies
+
+None. Existing Spring RestClient/Jackson/JDK HTTP and Spring mock HTTP support
+are sufficient.
+
+## 10. Implementation Plan
+
+### Phase 1: Freeze the verified Yahoo contract and replacement plan
+
+1. Inspect current upstream yfinance news code and the live Yahoo response.
+2. Record method, host, path, query, body, headers, root, exact mapping, ad
+   behavior, risks, and limitations.
+3. Confirm the existing generic schema and service boundary can be preserved.
+
+Validation: plan and source review; one safe read-only contract probe.
+
+### Phase 2: Add Yahoo configuration and HTTP adapter
+
+1. Add typed properties and a qualified RestClient using the existing JDK HTTP
+   stack, timeouts, redirect control, stable User-Agent, and JSON Accept header.
+2. Add verified request/response DTOs.
+3. Implement POST body/query construction, candidate count, content-type
+   validation, safe status mapping, and at most one transient retry.
+4. Do not send credentials, cookies, crumbs, or browser headers.
+
+Validation:
+`cd backend && ./mvnw -Dtest=YahooFinanceNewsDataClientTest test`
+
+### Phase 3: Add Yahoo mapping and remove FMP news transport
+
+1. Map only verified fields, using the application Clock for retrieval time.
+2. Filter ads and non-story records, normalize text, validate timestamps, and
+   implement valid-empty/partial/all-invalid behavior.
+3. Delete only obsolete FMP news classes/tests/fixture.
+4. Preserve every FMP financial-data class and test.
+
+Validation:
+`cd backend && ./mvnw -Dtest=YahooFinanceNewsResponseMapperTest,YahooFinanceNewsDataClientTest test`
+
+### Phase 4: Align provider-neutral behavior and documentation
+
+1. Change all-invalid normalized provider data to news-provider error behavior.
+2. Update provider-name expectations without changing API shape, persistence,
+   limit validation, URL rules, or deduplication behavior.
+3. Update only necessary design, environment, application, and README text.
+
+Validation:
+`cd backend && ./mvnw -Dtest='com.stocklens.news.**' test`
+
+### Phase 5: Full automated validation
+
+1. Run all tests with no Yahoo/FMP credential and no live Yahoo dependency.
+2. Verify Flyway V0–V5, Hibernate validation, PostgreSQL Testcontainers, and
+   all completed FMP financial behavior.
+3. Scan for dead FMP-news code, provider DTO leakage, live-test endpoints,
+   scraping/browser automation, secrets, and Milestone 5 code.
+
+Validation:
 
 ```bash
 cd backend && ./mvnw clean verify
-git status --short
 git diff --check
-git diff --stat
-git diff
 ```
 
-Security/scope review uses tracked-file searches without printing environment
-values:
+### Phase 6: Live smoke and final review
 
-```bash
-rg -n "apikey=|FMP_API_KEY|api-key" backend .agent/plans/04-news-integration.md
-git status --short --ignored
-```
+1. Start existing Compose dependencies and the backend normally.
+2. Call AAPL twice with limit 3 and MSFT once.
+3. Verify HTTP/public fields/order/provider and database idempotency queries.
+4. If Yahoo refuses or changes the contract, preserve strict tests and record
+   the controlled runtime limitation.
+5. Review the complete diff and finalize this plan.
 
-## Acceptance Criteria
+## 11. Testing Strategy
 
-- [x] V5 reproducibly creates both news tables with required constraints and
-  indexes, and Hibernate validation passes against PostgreSQL.
-- [x] `NewsArticle` stores only normalized application fields and supports
-  multiple associated companies.
-- [x] The official FMP response contract is represented exactly inside the FMP
-  adapter; no unverified field is invented.
-- [x] `/news/stock` uses one normalized ticker, `page=0`, the validated limit,
-  and the existing FMP key/configuration.
-- [x] Provider failures, rate limits, malformed data, missing configuration,
-  empty data, and partial invalid records have explicit safe behavior.
-- [x] URL canonicalization follows the documented minimal rules and SHA-256
-  hash output is deterministic.
-- [x] Repeated retrievals do not duplicate article or join rows, including
-  under database uniqueness constraints.
-- [x] One canonical article can relate to more than one company.
-- [x] The public endpoint defaults to 10, accepts 1..20, rejects other limits,
-  returns newest-first DTOs, and exposes no FMP/JPA/secret fields.
-- [x] Mixed valid/invalid responses preserve valid articles with a sanitized
-  warning; all-invalid non-empty responses fail in a controlled way.
-- [x] Automated tests make no live provider calls and PostgreSQL integration
-  tests use Testcontainers rather than H2.
-- [x] `cd backend && ./mvnw clean verify` passes.
-- [x] Complete diff, scope, generated-file, and credential reviews pass.
-- [x] The plan records manual smoke-test success or the honest access/credential
-  limitation.
-- [x] No Milestone 5 or later work is implemented.
+### Provider contract and mapping
 
-## Assumptions and Unresolved Decisions
+- Exact POST path/query/body/base URL and stable headers.
+- Successful multi-story response and newest-first mapping.
+- Exact external ID, headline, source, canonical URL, summary, ISO instant,
+  provider name, empty related symbols, and fixed retrieved time.
+- Ad and non-story filtering.
+- Optional ID/source/summary and click-through URL fallback.
+- Valid empty stream; missing/null stream; malformed JSON; HTML content type.
+- Mixed malformed records; all invalid; missing content/headline/URL/pubDate;
+  invalid URL/timestamp.
+- 400/401/403/404/429/5xx, unexpected redirect, timeout, and connection failure.
+- No test contacts Yahoo or requires any credential.
 
-### Assumptions
+### Existing provider-neutral tests
 
-- FMP's documented timezone-less `publishedDate` represents UTC for normalized
-  storage. This is necessary to map to `Instant`; the provider documentation
-  does not publish a timezone on the inspected page.
-- FMP's single `symbol` string identifies one related ticker per returned row.
-  The docs do not verify an array or comma-separated per-row symbol contract.
-- A valid empty FMP list means the company has no currently returned articles,
-  not malformed provider data. Unknown tickers are determined by the existing
-  company/profile resolution when possible.
-- `publisher` is the preferred source label; `site` is only a fallback.
-- The canonical URL, not the provider-returned raw URL, is persisted/exposed.
-- Existing FMP timeout and retry configuration is appropriate for its news
-  endpoint.
+- Preserve URL canonicalization equivalence, fragment removal, query
+  preservation, unsafe scheme/user-info/relative rejection, and deterministic
+  SHA-256 behavior.
+- Preserve PostgreSQL uniqueness, FKs, newest-first query/limit, idempotent
+  repeated persistence, race-safe inserts, and multi-company association.
+- Preserve ticker/limit/service/controller behavior and public DTO boundaries.
 
-### Resolved during validation
+### Manual verification
 
-- The configured local FMP account does not currently have access to
-  `/stable/news/stock`: the safe direct smoke request returned HTTP 402.
-- Because access was denied before a news list was returned, no sanitized live
-  article fixture could be captured. The automated fixture remains based on
-  the verified official API Viewer schema.
-- The application endpoint returned `502 NEWS_PROVIDER_ERROR` with the standard
-  safe error body. Local PostgreSQL contained `0` `news_article` rows and `0`
-  join rows after the failed request, confirming no partial write.
+- AAPL `limit=3`, repeated once, then MSFT `limit=3`.
+- Confirm no more than three newest-first stories, required fields, optional
+  source, `YAHOO_FINANCE`, no ads/wrappers/cookies/internal details.
+- Confirm no duplicate URL hashes or company/article relationships.
 
-## Risks and Mitigations
+## 12. Risks and Mitigations
 
-| Risk | Mitigation |
-|---|---|
-| FMP plan does not permit stock news | Preserve the interface/adapter, return a controlled error, and record the live limitation. |
-| Timezone-less publication strings are ambiguous | Parse the exact format as UTC and document the provider assumption. |
-| Provider HTML reaches future UI | Normalize stored text to plain text and never fetch/render provider HTML here. |
-| URL over-normalization merges distinct articles | Limit canonicalization to verified safe operations and preserve query strings. |
-| Provider duplicates race across requests | Use in-memory collapse plus database uniqueness and conflict-safe inserts. |
-| Collection-fetch pagination produces incorrect limits | Page article IDs first, then fetch relationships and restore ID order. |
-| One bad row loses all good news | Skip invalid rows with count-only warnings; fail only if non-empty input yields no valid rows. |
-| Raw errors or keys leak | Never log full FMP URLs/bodies; central handlers return fixed public messages. |
-| Scope expands into comparison/caching/AI | Keep all work behind the supporting one-ticker endpoint and stop at Milestone 4 acceptance. |
+| Risk | Impact | Mitigation |
+|---|---|---|
+| Yahoo changes an unofficial response | News becomes unavailable | Strict contract validation, controlled provider errors, isolated replaceable adapter, documented risk. |
+| Yahoo rate limits low-volume requests | Temporary 429 | No evasion, no long sleep, safe RATE_LIMITED response, no cache added early. |
+| Yahoo returns HTML/redirect/challenge | Unsafe parsing or scraping temptation | Disable redirects, require JSON content type, return controlled error, never scrape HTML. |
+| Yahoo rejects chunked POST bodies | Live request returns HTTP 502 despite a valid payload | Serialize the typed request to a bounded byte array, send a fixed `Content-Length`, and assert the exact 50-byte AAPL contract in the mock HTTP test. |
+| Ads/promotional/video records enter persistence | Misleading public news | Filter truthy `ad`, accept only `STORY`, validate required article fields. |
+| Yahoo wrapper and publisher canonical URLs differ | Duplicate or undesirable links | Prefer the supplied canonical publisher URL, fall back deterministically, never follow redirects. |
+| Missing related symbols | Over-rejection of ticker-scoped results | Trust only the ticker-scoped stream and associate the requested resolved Company. |
+| Existing FMP news rows remain locally | Mixed provider historical data | Generic schema supports both; new calls write Yahoo values. No destructive data migration is justified. |
 
-## Rollback Strategy
+## 13. Rollback / Recovery
 
-- Code rollback removes only the new `news` package, news exceptions/handler
-  branches, news tests/fixtures, and the infrastructure assertion update.
-- Database rollback in a development environment removes the join table before
-  the article table. Applied Flyway migrations are never edited; a production
-  rollback would require a new forward migration.
-- No existing source table is altered, so Milestones 1-3 remain independently
-  usable if the news slice is disabled.
-- No cache, AI, or frontend state requires rollback.
+- The Yahoo adapter/configuration can be reverted without a schema rollback.
+- V5 remains unchanged and provider-independent.
+- Existing stored FMP news rows, if any, remain valid generic historical rows;
+  this milestone does not delete durable data.
+- If Yahoo becomes unusable, disable calls or replace only the
+  `NewsDataClient` adapter in a later approved decision.
+- Never edit an applied migration or delete local volumes as routine recovery.
 
-## Progress
+## 14. Progress
 
-- [x] Read all governing documents and the completed Milestone 3 plan.
-- [x] Inspected the complete existing backend implementation and tests.
-- [x] Verified the official FMP Search Stock News request parameters, list root,
-  and exact sample response fields in the stable documentation/API Viewer.
-- [x] Recorded scope, architecture, schema, API, mapping, error, partial-record,
-  deduplication, security, testing, and completion decisions in this plan.
-- [x] Phase 1: schema and domain mapping.
-- [x] Phase 2: provider-neutral boundary and URL normalization.
-- [x] Phase 3: FMP news adapter.
-- [x] Phase 4: persistence and recent-news services.
-- [x] Phase 5: controller and API errors.
-- [x] Phase 6: end-to-end automated verification.
-- [x] Phase 7: safe manual verification and completion review. The account
-  returned HTTP 402, so controlled failure and zero partial writes were
-  verified instead of a live article success payload.
+- [x] Read governing documents and completed Milestone 1–3 plans.
+- [x] Inspected current backend, migrations, tests, and clean diff.
+- [x] Verified current upstream yfinance request logic.
+- [x] Verified a live cookie-free Yahoo JSON response and exact field shape.
+- [x] Replaced the execution plan and marked it In Progress.
+- [x] Phase 2 complete — Yahoo configuration and HTTP adapter.
+- [x] Phase 3 complete — Yahoo mapping and obsolete FMP-news removal.
+- [x] Phase 4 complete — provider-neutral behavior and documentation aligned.
+- [x] Phase 5 complete — automated validation.
+- [x] Phase 6 complete — live smoke and final review.
+- [x] Acceptance criteria confirmed.
 
-## Decision Log
+## 15. Decision Log
 
-- 2026-07-18: Reuse FMP for news and use only the company-specific stable
-  `/news/stock` endpoint. No general-news or press-release fallback.
-- 2026-07-18: Use `V5__create_news_tables.sql` for both news tables because
-  Section 22 reserves V6 for comparison briefs.
-- 2026-07-18: Use `page=0` and the API limit `1..20`; no additional pages or
-  date bounds are needed for the supporting recent-news endpoint.
-- 2026-07-18: Treat FMP's verified list as a list root with fields `symbol`,
-  `publishedDate`, `publisher`, `title`, `image`, `site`, `text`, and `url`.
-- 2026-07-18: Keep `externalId` null for FMP because no stable ID is supplied.
-- 2026-07-18: Interpret timezone-less FMP publication timestamps as UTC.
-- 2026-07-18: Return a valid empty provider result as HTTP 200 with an empty
-  article list; distinguish it from an all-invalid non-empty response.
-- 2026-07-18: Preserve partial success and expose only a skipped-record count.
-- 2026-07-18: Preserve all URL query parameters; normalize only whitespace,
-  scheme/host case, and fragment removal before SHA-256 hashing.
-- 2026-07-18: Use database conflict-safe article and relationship inserts in
-  addition to response-level deduplication.
-- 2026-07-19: Use `VARCHAR(64)` for `url_hash`; PostgreSQL's `CHAR(64)` reports
-  a different JDBC type and does not satisfy Hibernate schema validation under
-  `ddl-auto=validate`.
-- 2026-07-19: Record the configured account's HTTP 402 as an FMP plan-access
-  limitation. Do not add or silently switch to another news feed.
+| Date | Decision | Reason | Alternatives |
+|---|---|---|---|
+| 2026-07-19 | Use Yahoo only for recent news and retain FMP for all financial data | FMP stock news returns HTTP 402; Yahoo ticker stream returned usable JSON | Upgrade FMP plan; licensed provider; search endpoint fallback |
+| 2026-07-19 | Select only POST `/xhr/ncp?queryRef=latestNews&serviceKey=ncp_fin` | It matches current yfinance and succeeded without authentication/browser automation | Yahoo search endpoint; implement both as hidden fallbacks |
+| 2026-07-19 | Preserve `NewsFetchResult` rather than reduce the boundary to a bare list | Existing provider-neutral skipped-record metadata supports the required partial-success warning | Lose warnings or create a second side channel |
+| 2026-07-19 | Preserve public default 10 and range 1..20 | It is an already implemented/documented contract and design shows `limit=10` | Reduce maximum/default to dashboard display size 3/10 |
+| 2026-07-19 | Request `max(10, limit*2)` candidates, capped at 40 | Allows ad/invalid filtering while keeping a low bounded request; max public limit 20 | Request exactly limit; unbounded candidate count |
+| 2026-07-19 | Prefer Yahoo canonical publisher URL over click-through URL | Live records supply direct publisher URLs in `canonicalUrl` and Yahoo wrapper URLs in `clickThroughUrl` | Persist wrapper only; follow redirects |
+| 2026-07-19 | Accept only `STORY` and filter truthy top-level `ad` | Matches the verified content type and current upstream yfinance ad behavior | Persist videos/slideshows/promotions |
+| 2026-07-19 | Add no dependency, credential, cookie, or fallback endpoint | Existing stack is sufficient and unofficial access must remain low-risk and replaceable | yfinance runtime, browser automation, new HTTP stack |
+| 2026-07-19 | Send the typed Yahoo request as fixed-length JSON bytes | Live testing proved Yahoo returned 502 for chunked transfer encoding but 200 for the identical fixed-length payload | Keep Spring's chunked converter; add a different HTTP dependency |
 
-## Deviations
+## 16. Deviations from Design
 
-None. The provider boundary returns `NewsFetchResult` rather than a bare list
-so the required partial-record warning metadata can remain provider-neutral.
-This is a deliberate refinement of the request's illustrative “such as”
-interface, not an architecture or scope deviation.
+- Approved by the user in this task: Yahoo Finance is the news provider while
+  FMP remains the financial provider. The previous implementation assumption
+  that FMP also supplied news is replaced.
+- No schema, public API, architecture, or milestone-order deviation exists.
 
-## Evidence
+## 17. Validation Evidence
 
-- Official FMP stable documentation: `Search Stock News API`.
-- Official API Viewer endpoint: `/stable/news/stock?symbols=AAPL`.
-- Verified documented parameters: `symbols`, `from`, `to`, `page`, `limit`;
-  maximum 250 records and page maximum 100.
-- Verified official sample fields and list root are recorded above.
-- `./mvnw -DskipTests compile`: passed after the production slice was added.
-- Focused non-container news tests: 23 passed, 0 failed.
-- Focused PostgreSQL news integration tests: passed after validating the V5
-  schema and aligning `url_hash` with Hibernate's expected JDBC type.
-- `cd backend && ./mvnw clean verify`: passed on 2026-07-19 with 94 tests,
-  0 failures, 0 errors, and a successfully repackaged JAR.
-- The full run applied migrations V0-V5 to PostgreSQL 18.4 and validated the
-  mappings with `ddl-auto=validate`.
-- `git diff --check`: passed.
-- Secret scan found no committed real API key; only configuration names,
-  placeholders, and the explicit `test-api-key` fixture value are present.
-- Generated/local files remain ignored: `.env`, IDE metadata, Maven `target`,
-  frontend `dist`, and `node_modules` are not part of the change.
-- Safe live application request:
-  `/api/v1/stocks/AAPL/news?limit=3` returned HTTP 502 with code
-  `NEWS_PROVIDER_ERROR` and no raw provider content.
-- Safe direct contract/access check returned HTTP 402 from FMP. The response
-  body was not printed or persisted in the repository.
-- Post-request database check returned `0|0` for article and relationship
-  counts. The locally started backend was then stopped cleanly.
+| Command / check | Result | Notes |
+|---|---|---|
+| Required document/current repository review | PASS | AGENTS, full design, PLANS, Milestone 1–4 plans, backend, migrations, tests, and clean diff inspected. |
+| Current upstream yfinance inspection | PASS | `get_news` uses POST `/xhr/ncp`, `latestNews`, the JSON service body, stream root, and top-level ad filtering. |
+| Read-only Yahoo contract probe | PASS | HTTP 200, `application/json`, no redirect, ten ticker-stream records, no credentials/cookies/browser automation. |
+| `cd backend && ./mvnw -DskipTests compile` | PASS | 84 production source files compile on Java 21 with no dependency change. |
+| Focused Yahoo contract/mapper tests | PASS | 13 tests, 0 failures/errors; exact request, mapping, status, content-type, malformed/partial/empty, retry, and filter behavior covered. |
+| `cd backend && ./mvnw -Dtest='com.stocklens.news.**' test` | PASS | 35 tests, 0 failures/errors; includes PostgreSQL 18.4 Testcontainers, Flyway V0–V5, Hibernate validation, persistence, service, and MVC coverage. |
+| `cd backend && ./mvnw clean verify` | PASS | 96 tests across 26 reports, 0 failures, 0 errors; clean package created. PostgreSQL 18.4 and Redis 8.8 Testcontainers passed; Flyway applied V0–V5 and Hibernate validated the model. |
+| Live application smoke | PASS | Temporary port 18081: AAPL twice and MSFT once with `limit=3` each returned HTTP 200, three newest-first articles, required public fields, and `YAHOO_FINANCE`. The initial chunked-body 502 was diagnosed and fixed with fixed-length request serialization. |
+| Live database idempotency/order | PASS | 0 duplicate URL hashes, 0 duplicate provider/external IDs, 0 duplicate company/article links; AAPL and MSFT each had ten Yahoo article links after bounded candidate persistence. A newest-first SQL query returned ten descending timestamps with generic `YAHOO_FINANCE` values. |
+| Diff/security/scope review | PASS | No migration, dependency manifest, frontend, CI, Compose, deployment, or Milestone 5 change. No dead FMP-news code, key, cookie, crumb, `.env`, generated file, scraping/browser automation, or provider DTO leakage. `git diff --check` passed. |
 
-## Completion Summary
+## 18. Completion Summary
 
-Milestone 4 is implemented without beginning Milestone 5. V5 creates durable
-news and company-association tables with URL/external-ID uniqueness, foreign
-keys, ordering indexes, and idempotent join constraints. The provider-neutral
-news boundary and FMP adapter use only the verified stable list schema and
-documented first-page/limit parameters. Provider text is converted to plain
-text; URLs are minimally canonicalized and SHA-256 hashed; mixed malformed
-records are skipped with count-only warnings; all-invalid data fails safely.
+Milestone 4 now uses a typed, isolated Yahoo Finance news adapter behind the
+existing provider-neutral `NewsDataClient`. The adapter sends the verified
+fixed-length POST contract, validates transport and response structure, maps
+only the approved fields, filters advertisements and non-story content, and
+preserves partial valid results. FMP remains unchanged for all financial data.
 
-The single-ticker news service resolves companies, validates limits, performs
-conflict-safe article/relation upserts, and returns newest-first public DTOs at
-`GET /api/v1/stocks/{ticker}/news?limit=10`. News-specific validation,
-rate-limit, and provider errors use the existing API error envelope. All 94
-backend tests pass. Live success could not be demonstrated because the current
-FMP account returns HTTP 402 for this dataset; the abstraction, mock coverage,
-controlled runtime error, and zero-partial-write behavior are verified.
+The generic V5 news schema, persistence, URL canonicalization and hashing,
+deduplication, company relationships, service orchestration, controller, and
+public DTOs were preserved. Obsolete FMP-news-only code and fixtures were
+removed. Design, README, application configuration, and the environment example
+now disclose the unofficial and replaceable Yahoo provider boundary.
+
+Automated validation finished with 96 tests and no failures or errors. Live
+AAPL/MSFT requests passed after a confirmed chunked-transfer incompatibility
+was fixed and covered by a fixed-content-length regression assertion. No
+Milestone 5 behavior, new dependency, schema migration, credential, scraping,
+browser automation, frontend work, authentication, or deployment work was
+added. The remaining limitation is the documented instability and licensing
+risk of Yahoo's unofficial endpoint; a future production deployment should
+replace it with a licensed provider without changing the public or domain
+contracts.
