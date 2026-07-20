@@ -48,7 +48,8 @@ class NewsQueryServiceTest {
                 financialDataClient,
                 companyService,
                 newsDataClient,
-                persistenceService);
+                persistenceService,
+                new NewsArticleRelevanceService());
     }
 
     @Test
@@ -57,7 +58,7 @@ class NewsQueryServiceTest {
         NewsFetchResult fetch = new NewsFetchResult(List.of(), 1, "YAHOO_FINANCE", NOW);
         when(companyRepository.findByTicker("AAPL")).thenReturn(Optional.of(company));
         when(newsDataClient.getRecentNews("AAPL", 3)).thenReturn(fetch);
-        when(persistenceService.persistAndLoadRecent(company, fetch, 3))
+        when(persistenceService.persistAndLoadRecent(company, fetch, 10))
                 .thenReturn(new PersistenceResult(List.of(), 2));
 
         var response = service.getRecentNews(" aapl ", 3);
@@ -83,7 +84,7 @@ class NewsQueryServiceTest {
         when(financialDataClient.getCompanyProfile("AAPL")).thenReturn(profile);
         when(companyService.upsert(profile)).thenReturn(company);
         when(newsDataClient.getRecentNews("AAPL", 10)).thenReturn(fetch);
-        when(persistenceService.persistAndLoadRecent(company, fetch, 10))
+        when(persistenceService.persistAndLoadRecent(company, fetch, 20))
                 .thenReturn(new PersistenceResult(List.of(), 0));
 
         var response = service.getRecentNews("AAPL", 10);

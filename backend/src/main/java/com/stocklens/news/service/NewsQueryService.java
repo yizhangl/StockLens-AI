@@ -22,6 +22,8 @@ public class NewsQueryService {
 
     public static final int DEFAULT_LIMIT = 10;
     public static final int MAX_LIMIT = 20;
+    private static final int MIN_CANDIDATE_LIMIT = 10;
+    private static final int MAX_CANDIDATE_LIMIT = 40;
 
     private final TickerNormalizer tickerNormalizer;
     private final CompanyRepository companyRepository;
@@ -29,6 +31,7 @@ public class NewsQueryService {
     private final CompanyService companyService;
     private final NewsDataClient newsDataClient;
     private final NewsArticlePersistenceService persistenceService;
+    private final NewsArticleRelevanceService relevanceService;
 
     public NewsQueryService(
             TickerNormalizer tickerNormalizer,
@@ -36,13 +39,15 @@ public class NewsQueryService {
             FinancialDataClient financialDataClient,
             CompanyService companyService,
             NewsDataClient newsDataClient,
-            NewsArticlePersistenceService persistenceService) {
+            NewsArticlePersistenceService persistenceService,
+            NewsArticleRelevanceService relevanceService) {
         this.tickerNormalizer = tickerNormalizer;
         this.companyRepository = companyRepository;
         this.financialDataClient = financialDataClient;
         this.companyService = companyService;
         this.newsDataClient = newsDataClient;
         this.persistenceService = persistenceService;
+        this.relevanceService = relevanceService;
     }
 
     public NewsResponse getRecentNews(String rawTicker, int limit) {
@@ -52,8 +57,22 @@ public class NewsQueryService {
                 .orElseGet(() -> companyService.upsert(
                         financialDataClient.getCompanyProfile(ticker)));
         NewsFetchResult fetchResult = newsDataClient.getRecentNews(ticker, limit);
+        NewsFetchResult relevantFetchResult = new NewsFetchResult(
+                relevanceService.filterRelevant(company, fetchResult.articles()),
+                fetchResult.skippedArticleCount(),
+                fetchResult.providerName(),
+                fetchResult.retrievedAt());
         PersistenceResult persisted = persistenceService.persistAndLoadRecent(
-                company, fetchResult, limit);
+                company, relevantFetchResult, candidateLimit(limit));
+
+        List<NewsArticle> relevantArticles = persisted.articles().stream()
+                .filter(article -> relevanceService.assess(company, article).isRelevant())
+                .sorted(Comparator
+                        .comparing(NewsArticle::getPublishedAt)
+                        .reversed()
+                        .thenComparing(NewsArticle::getHeadline))
+                .limit(limit)
+                .toList();
 
         List<NewsWarningResponse> warnings = persisted.skippedArticleCount() == 0
                 ? List.of()
@@ -66,8 +85,14 @@ public class NewsQueryService {
                 limit,
                 fetchResult.providerName(),
                 fetchResult.retrievedAt(),
-                persisted.articles().stream().map(this::toResponse).toList(),
+                relevantArticles.stream().map(this::toResponse).toList(),
                 warnings);
+    }
+
+    private int candidateLimit(int publicLimit) {
+        return Math.min(
+                MAX_CANDIDATE_LIMIT,
+                Math.max(MIN_CANDIDATE_LIMIT, publicLimit * 2));
     }
 
     private void validateLimit(int limit) {

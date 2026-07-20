@@ -78,12 +78,26 @@ class NewsQueryServiceIntegrationTest {
         var empty = service.getRecentNews("EMPTY", 10);
 
         assertThat(partial.articles()).singleElement()
-                .satisfies(article -> assertThat(article.headline()).isEqualTo("Valid article"));
+                .satisfies(article -> assertThat(article.headline())
+                        .isEqualTo("PART valid article"));
         assertThat(partial.warnings()).singleElement()
                 .satisfies(warning -> assertThat(warning.skippedArticleCount()).isEqualTo(1));
         assertThat(empty.articles()).isEmpty();
         assertThat(empty.warnings()).isEmpty();
         assertThat(companyRepository.count()).isEqualTo(2);
+    }
+
+    @Test
+    void filtersIrrelevantCandidatesBeforePersistenceAndStillFillsPublicLimit() {
+        var response = service.getRecentNews("FILTER", 3);
+
+        assertThat(response.articles()).extracting(article -> article.headline())
+                .containsExactly(
+                        "FILTER launches product three",
+                        "FILTER launches product two",
+                        "FILTER launches product one");
+        assertThat(articleRepository.count()).isEqualTo(3);
+        assertThat(relationshipCount()).isEqualTo(3);
     }
 
     private long relationshipCount() {
@@ -144,13 +158,40 @@ class NewsQueryServiceIntegrationTest {
             }
             if (ticker.equals("PART")) {
                 return new NewsFetchResult(List.of(
-                        article(ticker, "Valid article", "https://example.com/valid"),
-                        article(ticker, "Unsafe article", "javascript:alert(1)")),
+                        article(ticker, "PART valid article", "https://example.com/valid"),
+                        article(ticker, "PART unsafe article", "javascript:alert(1)")),
+                        0, "YAHOO_FINANCE", NOW);
+            }
+            if (ticker.equals("FILTER")) {
+                return new NewsFetchResult(List.of(
+                        article(
+                                ticker,
+                                "Tesla expands vehicle production",
+                                "https://example.com/tesla"),
+                        articleWithoutSymbols(
+                                "Oil prices move higher",
+                                "https://example.com/oil",
+                                NOW.plusSeconds(500)),
+                        article(
+                                ticker,
+                                "FILTER launches product one",
+                                "https://example.com/one",
+                                NOW),
+                        article(
+                                ticker,
+                                "FILTER launches product two",
+                                "https://example.com/two",
+                                NOW.plusSeconds(100)),
+                        article(
+                                ticker,
+                                "FILTER launches product three",
+                                "https://example.com/three",
+                                NOW.plusSeconds(200))),
                         0, "YAHOO_FINANCE", NOW);
             }
             return new NewsFetchResult(List.of(article(
                     ticker,
-                    "Shared story",
+                    "AAPL and MSFT shared story",
                     ticker.equals("AAPL")
                             ? " HTTPS://Example.COM/shared-story?edition=us#apple "
                             : "https://example.com/shared-story?edition=us#microsoft")),
@@ -158,14 +199,33 @@ class NewsQueryServiceIntegrationTest {
         }
 
         private NewsArticleData article(String ticker, String headline, String url) {
+            return article(ticker, headline, url, NOW);
+        }
+
+        private NewsArticleData article(
+                String ticker, String headline, String url, Instant publishedAt) {
             return new NewsArticleData(
                     null,
                     headline,
                     "Example Wire",
                     url,
                     null,
-                    NOW,
+                    publishedAt,
                     Set.of(ticker),
+                    NOW,
+                    "YAHOO_FINANCE");
+        }
+
+        private NewsArticleData articleWithoutSymbols(
+                String headline, String url, Instant publishedAt) {
+            return new NewsArticleData(
+                    null,
+                    headline,
+                    "Example Wire",
+                    url,
+                    null,
+                    publishedAt,
+                    Set.of(),
                     NOW,
                     "YAHOO_FINANCE");
         }

@@ -59,7 +59,7 @@ class YahooFinanceNewsDataClientTest {
     }
 
     @Test
-    void sendsVerifiedPostContractUsesConfiguredBaseUrlAndMapsStories() {
+    void sendsVerifiedPostContractAndRequestsTenCandidatesForPublicLimitThree() {
         server.expect(once(), requestTo(NEWS_URL))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE))

@@ -240,6 +240,20 @@ Filtering rules:
 - [x] A safe live AAPL/MSFT smoke test is recorded honestly.
 - [x] Design disclosure, complete diff, secrets/generated-file, scraping,
   endpoint-host, DTO-leakage, and Milestone 5 scope reviews pass.
+- [x] Company aliases consist of the ticker, full company name, and only a
+  conservatively derived short name with a trailing legal suffix removed.
+- [x] Relevance scoring is deterministic and explainable: headline alias `+2`,
+  description alias `+1`, requested ticker in related symbols `+1`, minimum
+  accepted score `2`.
+- [x] Alias matching is case-insensitive and token-aware; related symbols alone
+  cannot make an article relevant.
+- [x] Relevance filtering happens before persistence and again across a larger
+  persisted candidate window before final newest-first sorting and limiting.
+- [x] An unrelated Tesla article tagged only with AAPL is rejected, while
+  headline, description-plus-symbol, and missing-related-symbol positive cases
+  are covered.
+- [x] Yahoo still requests at least ten candidates for public `limit=3`, and
+  the public API remains unchanged.
 
 ## 8. Expected Files
 
@@ -254,6 +268,8 @@ Filtering rules:
 - `backend/src/test/java/com/stocklens/news/client/yahoo/YahooFinanceNewsDataClientTest.java`
 - `backend/src/test/java/com/stocklens/news/client/yahoo/YahooFinanceNewsResponseMapperTest.java`
 - `backend/src/test/resources/fixtures/yahoo/news-success.json`
+- `backend/src/main/java/com/stocklens/news/service/NewsArticleRelevanceService.java`
+- `backend/src/test/java/com/stocklens/news/service/NewsArticleRelevanceServiceTest.java`
 
 ### Modify
 
@@ -265,6 +281,10 @@ Filtering rules:
 - `backend/src/main/java/com/stocklens/common/web/GlobalExceptionHandler.java`
 - `backend/src/main/java/com/stocklens/news/service/NewsArticlePersistenceService.java`
 - Existing provider-neutral news tests whose fixture provider value is `FMP`.
+- `backend/src/main/java/com/stocklens/news/service/NewsQueryService.java`
+- `backend/src/test/java/com/stocklens/news/service/NewsQueryServiceTest.java`
+- `backend/src/test/java/com/stocklens/news/service/NewsQueryServiceIntegrationTest.java`
+- `backend/src/test/java/com/stocklens/news/client/yahoo/YahooFinanceNewsDataClientTest.java`
 
 ### Delete
 
@@ -392,6 +412,31 @@ git diff --check
    the controlled runtime limitation.
 5. Review the complete diff and finalize this plan.
 
+### Phase 7: Deterministic company relevance correction
+
+1. Build normalized aliases from the resolved Company: ticker, full name, and
+   a conservative short name created only by removing a recognized trailing
+   legal suffix.
+2. Score each provider-neutral article once per evidence category: headline
+   alias `+2`, description alias `+1`, and exact requested ticker in
+   `relatedSymbols` `+1`; require score `>=2`.
+3. Use Unicode alphanumeric token sequences for case-insensitive matching so
+   short aliases do not match inside unrelated words.
+4. Filter provider candidates before persistence. Query a bounded larger
+   persisted candidate window, apply the same score to stored articles, sort
+   newest-first, and then apply the unchanged public limit.
+5. Keep relevance drops separate from malformed-provider warning counts.
+6. Add focused scoring/orchestration/client candidate-count regressions, then
+   run the complete backend verification and diff/security/scope review.
+
+Validation:
+
+```bash
+cd backend && ./mvnw -Dtest=NewsArticleRelevanceServiceTest,NewsQueryServiceTest,YahooFinanceNewsDataClientTest test
+cd backend && ./mvnw clean verify
+git diff --check
+```
+
 ## 11. Testing Strategy
 
 ### Provider contract and mapping
@@ -417,6 +462,19 @@ git diff --check
   repeated persistence, race-safe inserts, and multi-company association.
 - Preserve ticker/limit/service/controller behavior and public DTO boundaries.
 
+### Deterministic relevance tests
+
+- Reject an unrelated Tesla headline whose only evidence is `AAPL` in
+  `relatedSymbols`.
+- Accept an Apple headline with or without `relatedSymbols`.
+- Accept a description-only Apple mention when exact `AAPL` related-symbol
+  evidence supplies the second point.
+- Reject an unrelated article with no evidence.
+- Verify case-insensitive token matching, safe `Apple Inc.` to `Apple` alias
+  derivation, and no substring match inside a larger word.
+- Verify ten provider candidates are requested for public `limit=3` and the
+  final response can still contain three relevant articles after filtering.
+
 ### Manual verification
 
 - AAPL `limit=3`, repeated once, then MSFT `limit=3`.
@@ -434,7 +492,8 @@ git diff --check
 | Yahoo rejects chunked POST bodies | Live request returns HTTP 502 despite a valid payload | Serialize the typed request to a bounded byte array, send a fixed `Content-Length`, and assert the exact 50-byte AAPL contract in the mock HTTP test. |
 | Ads/promotional/video records enter persistence | Misleading public news | Filter truthy `ad`, accept only `STORY`, validate required article fields. |
 | Yahoo wrapper and publisher canonical URLs differ | Duplicate or undesirable links | Prefer the supplied canonical publisher URL, fall back deterministically, never follow redirects. |
-| Missing related symbols | Over-rejection of ticker-scoped results | Trust only the ticker-scoped stream and associate the requested resolved Company. |
+| Ticker-scoped Yahoo stream contains editorially unrelated articles | Misleading company news | Require deterministic alias evidence with score `>=2`; a related symbol alone scores only one point. |
+| Yahoo omits related symbols | Relevant article could be lost | Headline company/ticker evidence independently scores two points and remains sufficient. |
 | Existing FMP news rows remain locally | Mixed provider historical data | Generic schema supports both; new calls write Yahoo values. No destructive data migration is justified. |
 
 ## 13. Rollback / Recovery
@@ -460,6 +519,8 @@ git diff --check
 - [x] Phase 5 complete — automated validation.
 - [x] Phase 6 complete — live smoke and final review.
 - [x] Acceptance criteria confirmed.
+- [x] Phase 7 complete — deterministic company relevance correction.
+- [x] Relevance-correction acceptance criteria confirmed.
 
 ## 15. Decision Log
 
@@ -474,6 +535,8 @@ git diff --check
 | 2026-07-19 | Accept only `STORY` and filter truthy top-level `ad` | Matches the verified content type and current upstream yfinance ad behavior | Persist videos/slideshows/promotions |
 | 2026-07-19 | Add no dependency, credential, cookie, or fallback endpoint | Existing stack is sufficient and unofficial access must remain low-risk and replaceable | yfinance runtime, browser automation, new HTTP stack |
 | 2026-07-19 | Send the typed Yahoo request as fixed-length JSON bytes | Live testing proved Yahoo returned 502 for chunked transfer encoding but 200 for the identical fixed-length payload | Keep Spring's chunked converter; add a different HTTP dependency |
+| 2026-07-20 | Require deterministic relevance score `>=2` | Live AAPL smoke returned an unrelated Tesla article; ticker association alone is insufficient | Trust ticker stream; keyword substring filter; AI/search classification |
+| 2026-07-20 | Filter before persistence and before final public limit | Prevent new irrelevant rows and prevent previously stored irrelevant rows from crowding out relevant results | Filter only the response; destructively delete existing rows |
 
 ## 16. Deviations from Design
 
@@ -496,6 +559,11 @@ git diff --check
 | Live application smoke | PASS | Temporary port 18081: AAPL twice and MSFT once with `limit=3` each returned HTTP 200, three newest-first articles, required public fields, and `YAHOO_FINANCE`. The initial chunked-body 502 was diagnosed and fixed with fixed-length request serialization. |
 | Live database idempotency/order | PASS | 0 duplicate URL hashes, 0 duplicate provider/external IDs, 0 duplicate company/article links; AAPL and MSFT each had ten Yahoo article links after bounded candidate persistence. A newest-first SQL query returned ten descending timestamps with generic `YAHOO_FINANCE` values. |
 | Diff/security/scope review | PASS | No migration, dependency manifest, frontend, CI, Compose, deployment, or Milestone 5 change. No dead FMP-news code, key, cookie, crumb, `.env`, generated file, scraping/browser automation, or provider DTO leakage. `git diff --check` passed. |
+| Focused relevance correction tests | PASS | 19 tests across deterministic scoring, query orchestration, and Yahoo candidate requests; 0 failures/errors. |
+| `cd backend && ./mvnw -Dtest='com.stocklens.news.**' test` after correction | PASS | 43 news tests, 0 failures/errors; PostgreSQL Testcontainers applied V0–V5 and the five-candidate/three-result persistence case passed. |
+| Post-correction `cd backend && ./mvnw clean verify` | PASS | 104 tests across 27 reports, 0 failures, 0 errors; PostgreSQL and Redis Testcontainers, Flyway V0–V5, Hibernate validation, and the packaged application passed. |
+| Post-correction live AAPL smoke | PASS | Temporary port 18082 returned HTTP 200 with three `YAHOO_FINANCE` articles. Every returned headline/description contained token-aware Apple evidence, and the previously observed unrelated Tesla row was absent. |
+| Post-correction diff/security/scope review | PASS | Public API, migrations, provider boundary, dependencies, design, frontend, and infrastructure remain unchanged. No AI, search, scraping, cache, authentication, deployment, secret, generated file, or Milestone 5 code was added. `git diff --check` passed. |
 
 ## 18. Completion Summary
 
@@ -520,3 +588,15 @@ added. The remaining limitation is the documented instability and licensing
 risk of Yahoo's unofficial endpoint; a future production deployment should
 replace it with a licensed provider without changing the public or domain
 contracts.
+
+The 2026-07-20 relevance correction adds a provider-neutral deterministic
+score after Company resolution. Ticker, full company name, and a conservatively
+derived short legal name are matched as Unicode alphanumeric token sequences.
+Headline evidence scores two points, description evidence one, and an exact
+related ticker one; articles require at least two points. Provider records are
+filtered before persistence, and a bounded larger stored candidate window is
+filtered and sorted again before applying the unchanged public limit. The
+unrelated Tesla/AAPL regression now scores one and is rejected. Final automated
+validation increased to 104 tests with no failures or errors. A live AAPL
+request returned three Apple-relevant articles and excluded the previously
+persisted Tesla result.
