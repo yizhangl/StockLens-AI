@@ -39,5 +39,21 @@ public class StockQueryService {
         return new StockResult(company, snapshot);
     }
 
+    public CompanyResolution resolveCompany(String rawTicker) {
+        String ticker = tickerNormalizer.normalize(rawTicker);
+        CompanyProfileData profile = financialDataClient.getCompanyProfile(ticker);
+        return new CompanyResolution(companyService.upsert(profile), profile.currency());
+    }
+
+    public MarketSnapshot refreshMarketSnapshot(CompanyResolution resolution) {
+        String ticker = resolution.company().getTicker();
+        MarketSnapshotData snapshotData = financialDataClient
+                .getMarketSnapshot(ticker)
+                .withCurrency(resolution.currency());
+        return marketSnapshotService.create(resolution.company(), snapshotData);
+    }
+
     public record StockResult(Company company, MarketSnapshot latestMarketSnapshot) {}
+
+    public record CompanyResolution(Company company, String currency) {}
 }

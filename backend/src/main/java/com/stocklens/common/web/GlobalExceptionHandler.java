@@ -1,8 +1,10 @@
 package com.stocklens.common.web;
 
 import com.stocklens.common.exception.DataUnavailableException;
+import com.stocklens.common.exception.DuplicateTickersException;
 import com.stocklens.common.exception.FinancialProviderException;
 import com.stocklens.common.exception.FinancialProviderRateLimitedException;
+import com.stocklens.common.exception.InvalidComparisonModeException;
 import com.stocklens.common.exception.InvalidTickerException;
 import com.stocklens.common.exception.InvalidPeriodException;
 import com.stocklens.common.exception.InvalidNewsLimitException;
@@ -44,6 +46,18 @@ public class GlobalExceptionHandler {
     ResponseEntity<ApiErrorResponse> handleInvalidPeriod(
             InvalidPeriodException exception, HttpServletRequest request) {
         return response(HttpStatus.BAD_REQUEST, "INVALID_PERIOD", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(InvalidComparisonModeException.class)
+    ResponseEntity<ApiErrorResponse> handleInvalidComparisonMode(
+            InvalidComparisonModeException exception, HttpServletRequest request) {
+        return response(HttpStatus.BAD_REQUEST, "INVALID_MODE", exception.getMessage(), request);
+    }
+
+    @ExceptionHandler(DuplicateTickersException.class)
+    ResponseEntity<ApiErrorResponse> handleDuplicateTickers(
+            DuplicateTickersException exception, HttpServletRequest request) {
+        return response(HttpStatus.BAD_REQUEST, "DUPLICATE_TICKERS", exception.getMessage(), request);
     }
 
     @ExceptionHandler(InvalidNewsLimitException.class)

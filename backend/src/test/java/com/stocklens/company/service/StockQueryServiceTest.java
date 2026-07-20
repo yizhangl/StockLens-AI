@@ -79,6 +79,33 @@ class StockQueryServiceTest {
         verify(marketSnapshotService, never()).create(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 
+    @Test
+    void resolvesCompanyBeforeOptionalMarketRefresh() {
+        CompanyProfileData profile = profile();
+        Company company = company();
+        when(financialDataClient.getCompanyProfile("AAPL")).thenReturn(profile);
+        when(companyService.upsert(profile)).thenReturn(company);
+
+        var resolution = service.resolveCompany(" aapl ");
+
+        assertThat(resolution.company()).isSameAs(company);
+        assertThat(resolution.currency()).isEqualTo("USD");
+        verify(financialDataClient, never()).getMarketSnapshot("AAPL");
+    }
+
+    @Test
+    void refreshesMarketForAnAlreadyResolvedCompany() {
+        Company company = company();
+        MarketSnapshotData quote = quote(null);
+        MarketSnapshot snapshot = snapshot(company);
+        var resolution = new StockQueryService.CompanyResolution(company, "USD");
+        when(financialDataClient.getMarketSnapshot("AAPL")).thenReturn(quote);
+        when(marketSnapshotService.create(company, quote.withCurrency("USD"))).thenReturn(snapshot);
+
+        assertThat(service.refreshMarketSnapshot(resolution)).isSameAs(snapshot);
+        verify(financialDataClient, never()).getCompanyProfile("AAPL");
+    }
+
     private CompanyProfileData profile() {
         return new CompanyProfileData(
                 "AAPL",
