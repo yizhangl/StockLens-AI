@@ -1,0 +1,73 @@
+{
+  "data": {
+    "tickerStream": {
+      "stream": [
+        {
+          "id": "article-older",
+          "content": {
+            "id": "article-older",
+            "contentType": "STORY",
+            "title": "Apple expands a service",
+            "description": "",
+            "summary": "Apple shared details about an expanded service.",
+            "pubDate": "2026-07-17T09:15:00Z",
+            "provider": {
+              "displayName": "Example Wire"
+            },
+            "canonicalUrl": {
+              "url": "https://wire.example.com/apple-service"
+            },
+            "clickThroughUrl": {
+              "url": "https://finance.yahoo.com/news/apple-service.html"
+            }
+          }
+        },
+        {
+          "id": "article-newer",
+          "content": {
+            "id": "article-newer",
+            "contentType": "STORY",
+            "title": "Apple &amp; partners <strong>announce</strong> an update",
+            "description": "",
+            "summary": "Apple shared &lt;em&gt;verified&lt;/em&gt; product details.",
+            "pubDate": "2026-07-18T18:30:00Z",
+            "provider": {
+              "displayName": "Example Business News"
+            },
+            "canonicalUrl": {
+              "url": "https://Example.com/news/apple-update?edition=us#section"
+            },
+            "clickThroughUrl": {
+              "url": "https://finance.yahoo.com/news/apple-update.html"
+            }
+          }
+        },
+        {
+          "id": "advertisement",
+          "ad": {
+            "slot": "ticker-stream"
+          },
+          "content": {
+            "contentType": "STORY",
+            "title": "Promotional card",
+            "pubDate": "2026-07-19T00:00:00Z",
+            "canonicalUrl": {
+              "url": "https://example.com/promotion"
+            }
+          }
+        },
+        {
+          "id": "video-item",
+          "content": {
+            "contentType": "VIDEO",
+            "title": "Video item",
+            "pubDate": "2026-07-19T00:00:00Z",
+            "canonicalUrl": {
+              "url": "https://example.com/video"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

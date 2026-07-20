@@ -34,3 +34,8 @@ stocklens:
       connect-timeout: ${FMP_CONNECT_TIMEOUT:2s}
       read-timeout: ${FMP_READ_TIMEOUT:5s}
       max-attempts: ${FMP_MAX_ATTEMPTS:2}
+    yahoo-finance-news:
+      base-url: ${YAHOO_FINANCE_BASE_URL:https://finance.yahoo.com}
+      connect-timeout: ${YAHOO_FINANCE_CONNECT_TIMEOUT:2s}
+      read-timeout: ${YAHOO_FINANCE_READ_TIMEOUT:5s}
+      max-attempts: ${YAHOO_FINANCE_MAX_ATTEMPTS:2}

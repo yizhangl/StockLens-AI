@@ -3,7 +3,8 @@
 StockLens AI is a full-stack application for comparing two public companies.
 The current backend foundation includes Spring Boot, PostgreSQL, Redis, Flyway,
 and Financial Modeling Prep-backed company profiles, quotes, financial metrics,
-and historical daily prices.
+and historical daily prices. Recent stock news comes from an unofficial,
+replaceable Yahoo Finance ticker-news endpoint.
 The comparison dashboard remains a later milestone.
 
 ## Prerequisites
@@ -71,6 +72,19 @@ provide adjusted close, so historical returns use close. Forward P/E, revenue
 TTM, and beta remain null rather than being derived from unrelated fields.
 Endpoint access and public or multi-user display remain subject to the applicable
 FMP subscription and data-display license.
+
+Retrieve recent ticker-scoped news from Yahoo Finance:
+
+```bash
+curl --fail --silent 'http://localhost:8080/api/v1/stocks/AAPL/news?limit=3'
+```
+
+Yahoo Finance is used only for recent news and requires no application API key.
+This is an unofficial endpoint intended for local development, education,
+portfolio demonstration, and low-volume MVP usage. It is not guaranteed to be
+stable or commercially licensed for long-term production use. The backend does
+not scrape publisher pages, store browser state, or use cookies/crumb tokens;
+future production use should evaluate a licensed news provider.
 
 ## Start the Frontend
 
