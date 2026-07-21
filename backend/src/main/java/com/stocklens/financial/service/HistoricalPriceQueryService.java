@@ -15,6 +15,8 @@ import com.stocklens.market.client.model.HistoricalPriceData;
 import com.stocklens.common.cache.JsonRedisCache;
 import com.stocklens.common.cache.StockLensCacheKeys;
 import com.stocklens.common.cache.StockLensCacheProperties;
+import com.stocklens.common.time.FreshnessPolicy;
+import com.stocklens.financial.repository.HistoricalPriceRepository;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -34,6 +36,8 @@ public class HistoricalPriceQueryService {
     private final JsonRedisCache cache;
     private final StockLensCacheKeys cacheKeys;
     private final StockLensCacheProperties cacheProperties;
+    private final HistoricalPriceRepository repository;
+    private final FreshnessPolicy freshness;
 
     public HistoricalPriceQueryService(
             TickerNormalizer tickerNormalizer,
@@ -41,7 +45,8 @@ public class HistoricalPriceQueryService {
             CompanyService companyService,
             HistoricalPriceService historicalPriceService,
             HistoricalReturnCalculator returnCalculator,
-            Clock clock, JsonRedisCache cache, StockLensCacheKeys cacheKeys, StockLensCacheProperties cacheProperties) {
+            Clock clock, JsonRedisCache cache, StockLensCacheKeys cacheKeys, StockLensCacheProperties cacheProperties,
+            HistoricalPriceRepository repository, FreshnessPolicy freshness) {
         this.tickerNormalizer = tickerNormalizer;
         this.financialDataClient = financialDataClient;
         this.companyService = companyService;
@@ -49,6 +54,7 @@ public class HistoricalPriceQueryService {
         this.returnCalculator = returnCalculator;
         this.clock = clock;
         this.cache = cache; this.cacheKeys = cacheKeys; this.cacheProperties = cacheProperties;
+        this.repository = repository; this.freshness = freshness;
     }
 
     public HistoricalPriceResponse getHistory(String rawTicker, String rawPeriod) {
@@ -57,6 +63,14 @@ public class HistoricalPriceQueryService {
         var cached = cache.get(cacheKeys.history(ticker, period.code()), HistoricalPriceResponse.class);
         if (cached.isPresent()) return cached.get();
         PriceDateRange range = period.range(clock);
+        Company existing = companyService.findByTicker(ticker).orElse(null);
+        if (existing != null) {
+            List<HistoricalPrice> persisted = repository.findByCompany_IdOrderByTradingDateAscRetrievedAtDescIdDesc(existing.getId());
+            if (complete(persisted, range) && freshness.isFresh(persisted.stream().map(HistoricalPrice::getRetrievedAt).max(Instant::compareTo).orElse(null), cacheProperties.historyTtl())) {
+                HistoricalPriceResponse response = response(ticker, period, range, persisted);
+                cache.put(cacheKeys.history(ticker, period.code()), response, cacheProperties.historyTtl()); return response;
+            }
+        }
         CompanyProfileData profile = financialDataClient.getCompanyProfile(ticker);
         List<HistoricalPriceData> providerPrices = financialDataClient
                 .getHistoricalPrices(ticker, range.from(), range.to())
@@ -73,24 +87,35 @@ public class HistoricalPriceQueryService {
         if (prices.isEmpty()) {
             throw new DataUnavailableException("Historical prices are unavailable for " + ticker + ".");
         }
+        HistoricalPriceResponse response = response(ticker, period, range, prices);
+        cache.put(cacheKeys.history(ticker, period.code()), response, cacheProperties.historyTtl()); return response;
+    }
+
+    private HistoricalPriceResponse response(String ticker, PricePeriod period, PriceDateRange range, List<HistoricalPrice> prices) {
         BigDecimal calculatedReturn = returnCalculator.roundForApi(returnCalculator.calculate(prices));
         Instant retrievedAt = prices.stream()
                 .map(HistoricalPrice::getRetrievedAt)
                 .max(Instant::compareTo)
                 .orElseThrow();
         LocalDate startDate = range.from() == null ? prices.getFirst().getTradingDate() : range.from();
-        HistoricalPriceResponse response = new HistoricalPriceResponse(
+        return new HistoricalPriceResponse(
                 ticker,
                 period.code(),
                 startDate,
                 range.to(),
                 prices.getFirst().getCurrency(),
                 calculatedReturn,
-                providerName,
+                prices.getFirst().getProviderName(),
                 retrievedAt,
                 prices.stream().map(this::toPoint).toList());
-        cache.put(cacheKeys.history(ticker, period.code()), response, cacheProperties.historyTtl());
-        return response;
+    }
+
+    private boolean complete(List<HistoricalPrice> prices, PriceDateRange range) {
+        var valid = prices.stream().filter(p -> p.getTradingDate() != null && p.getClosePrice() != null && p.getClosePrice().signum() > 0)
+                .collect(java.util.stream.Collectors.toMap(HistoricalPrice::getTradingDate, p -> p, (a, b) -> a, java.util.TreeMap::new));
+        if (valid.size() < 2) return false;
+        if (range.from() == null) return valid.firstKey().isBefore(valid.lastKey());
+        return !valid.firstKey().isAfter(range.from()) && !valid.lastKey().isBefore(range.to());
     }
 
     private HistoricalPricePointResponse toPoint(HistoricalPrice price) {
