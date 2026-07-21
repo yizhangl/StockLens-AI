@@ -89,6 +89,11 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .button--primary { color: #fff; background: linear-gradient(135deg, #2176ea, #0758d5); box-shadow: 0 8px 20px rgb(23 105 224 / 22%); }
 .button--secondary { border-color: #b8cae7; color: var(--blue); background: #fff; }
 .compare-button { height: 54px; align-self: end; }
+.text-button { padding: 0; border: 0; color: var(--blue); background: transparent; cursor: pointer; font-weight: 700; }
+.refresh-control { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
+.refresh-feedback { min-width: 0; flex: 1; }
+.refresh-feedback > p { margin: 11px 0 0; color: var(--muted); font-size: 12px; font-weight: 700; }
+.refresh-feedback .section-warning { margin-top: 8px; }
 
 .dashboard { display: grid; gap: 16px; }
 .panel, .company-card, .error-state { border: 1px solid var(--line); border-radius: 13px; background: var(--panel); box-shadow: var(--shadow); }
@@ -117,6 +122,8 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .company-stats dt { margin-bottom: 4px; color: var(--muted); font-size: 11px; text-transform: uppercase; }
 .company-stats dd { margin: 0; font-size: 17px; font-weight: 750; overflow-wrap: anywhere; }
 .company-description { display: -webkit-box; min-height: 45px; margin: 14px 0 10px; overflow: hidden; color: #414d61; font-size: 13px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.company-description--expanded { display: block; overflow: visible; -webkit-line-clamp: unset; }
+.company-description-toggle { margin: -2px 0 12px; font-size: 12px; }
 .company-card__meta { display: flex; justify-content: space-between; gap: 16px; color: var(--muted); font-size: 12px; }
 .company-card__meta a { font-weight: 700; text-decoration: none; }
 
@@ -129,6 +136,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .ai-brief__loading { color: var(--blue); font-weight: 700; }
 .ai-brief__content { display: grid; gap: 16px; margin-top: 18px; }
 .ai-summary { max-width: 900px; margin: 0; color: #354258; line-height: 1.65; }
+.ai-summary, .ai-advantage-card p, .ai-risks li { overflow-wrap: anywhere; }
 .ai-advantages { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .ai-advantage-card { min-width: 0; padding: 15px; border: 1px solid var(--line); border-radius: 11px; background: #f9fbff; }
 .ai-advantage-card h3, .ai-risks h3 { margin: 0; font-size: 14px; }
@@ -136,6 +144,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .ai-winner { margin: 9px 0; color: var(--blue); font-size: 12px; font-weight: 800; text-transform: uppercase; }
 .ai-sources { display: grid; gap: 6px; margin: 10px 0 0; padding: 0; list-style: none; color: var(--muted); font-size: 10px; line-height: 1.35; }
 .ai-sources li { display: flex; flex-wrap: wrap; gap: 5px; align-items: baseline; }
+.ai-sources li > span:nth-child(2) { min-width: 0; overflow-wrap: anywhere; }
 .ai-sources a { font-weight: 700; }
 .source-chip { display: inline-block; padding: 2px 5px; border-radius: 4px; color: #275d9f; background: var(--blue-soft); font-family: ui-monospace, monospace; font-size: 10px; font-weight: 800; }
 .ai-risks { padding-top: 4px; border-top: 1px solid var(--line); }
@@ -154,6 +163,9 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .chart-area { width: 100%; height: 330px; }
 .chart-empty { display: grid; height: 250px; place-items: center; border-radius: 9px; color: var(--muted); background: #f7f9fc; }
 .chart-updating { margin: 8px 0 0; color: var(--blue); font-size: 12px; font-weight: 700; text-align: right; }
+.chart-module-loading { min-height: 180px; padding: 22px; }
+.chart-module-loading h2 { margin: 0; font-size: 21px; }
+.chart-module-loading p:last-child { color: var(--muted); }
 
 .metrics-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 .metric-card { min-width: 0; padding: 15px; border: 1px solid var(--line); border-radius: 11px; background: #fff; }
@@ -265,6 +277,8 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   .segmented-control { width: 100%; }
   .segmented-control button { flex: 1; min-width: 0; padding-inline: 6px; }
   .chart-area { height: 245px; margin-left: -8px; width: calc(100% + 8px); }
+  .metric-row { grid-template-columns: minmax(70px, 1.1fr) minmax(48px, .8fr) minmax(48px, .8fr); gap: 5px; }
+  .metric-row span { min-width: 0; overflow-wrap: anywhere; }
   .data-footer__facts { grid-template-columns: 1fr; }
   .data-footer__facts div, .data-footer__facts div:nth-child(3) { padding: 0; border: 0; }
 }

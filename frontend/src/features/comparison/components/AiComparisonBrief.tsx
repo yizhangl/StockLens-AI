@@ -29,7 +29,16 @@ function SourceReferences({ ids, brief }: { ids: string[]; brief: ComparisonRese
           <li key={id}>
             <span className="source-chip">{source.id}</span>
             <span>{source.ticker} · {source.label}</span>
-            {url ? <a href={url} target="_blank" rel="noopener noreferrer">Read source</a> : null}
+            {url ? (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Open cited article ${source.id} for ${source.ticker} in a new tab`}
+              >
+                Open cited article <span aria-hidden="true">↗</span>
+              </a>
+            ) : null}
           </li>
         )
       })}

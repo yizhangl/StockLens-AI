@@ -40,6 +40,8 @@ export interface ComparisonState {
   retry: () => void
   refreshData: () => Promise<void>
   isManualRefreshing: boolean
+  refreshStatus: string | null
+  refreshWarnings: string[]
 }
 
 export function useComparison(): ComparisonState {
@@ -51,6 +53,8 @@ export function useComparison(): ComparisonState {
   const [error, setError] = useState<ApiError | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isManualRefreshing, setIsManualRefreshing] = useState(false)
+  const [refreshStatus, setRefreshStatus] = useState<string | null>(null)
+  const [refreshWarnings, setRefreshWarnings] = useState<string[]>([])
   const requestSequence = useRef(0)
   const abortController = useRef<AbortController | null>(null)
 
@@ -123,10 +127,19 @@ export function useComparison(): ComparisonState {
     if (isManualRefreshing) return
     setIsManualRefreshing(true)
     setError(null)
+    setRefreshStatus(null)
+    setRefreshWarnings([])
     try {
-      await refreshComparison({ tickers: [queryRef.current.left, queryRef.current.right] })
+      const result = await refreshComparison({ tickers: [queryRef.current.left, queryRef.current.right] })
+      setRefreshWarnings(result.warnings)
       await load(queryRef.current, 'replace')
-    } catch (caught) { setError(toDisplayError(caught)) }
+      setRefreshStatus(result.warnings.length > 0
+        ? 'Data refresh completed with partial warnings.'
+        : 'Data refresh completed.')
+    } catch (caught) {
+      setError(toDisplayError(caught))
+      setRefreshStatus('Data refresh failed. The previous dashboard remains available.')
+    }
     finally { setIsManualRefreshing(false) }
   }, [isManualRefreshing, load])
 
@@ -142,5 +155,7 @@ export function useComparison(): ComparisonState {
     retry,
     refreshData,
     isManualRefreshing,
+    refreshStatus,
+    refreshWarnings,
   }
 }

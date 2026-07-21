@@ -1,15 +1,21 @@
+import { lazy, Suspense } from 'react'
 import { AppHeader } from '../components/layout/AppHeader.tsx'
 import { ErrorState } from '../components/common/ErrorState.tsx'
 import { LoadingSkeleton } from '../components/common/LoadingSkeleton.tsx'
+import { SectionWarning } from '../components/common/SectionWarning.tsx'
 import { AiComparisonBrief } from '../features/comparison/components/AiComparisonBrief.tsx'
 import { CompanySummaryCard } from '../features/comparison/components/CompanySummaryCard.tsx'
 import { ComparisonWarnings } from '../features/comparison/components/ComparisonWarnings.tsx'
 import { DataProvenanceFooter } from '../features/comparison/components/DataProvenanceFooter.tsx'
 import { MetricCategoryCard } from '../features/comparison/components/MetricCategoryCard.tsx'
-import { PricePerformanceChart } from '../features/comparison/components/PricePerformanceChart.tsx'
 import { RecentDevelopments } from '../features/comparison/components/RecentDevelopments.tsx'
 import { StockSearchForm } from '../features/comparison/components/StockSearchForm.tsx'
 import { useComparison } from '../features/comparison/hooks/useComparison.ts'
+
+const PricePerformanceChart = lazy(async () => {
+  const module = await import('../features/comparison/components/PricePerformanceChart.tsx')
+  return { default: module.PricePerformanceChart }
+})
 
 export function ComparePage() {
   const comparison = useComparison()
@@ -29,9 +35,24 @@ export function ComparePage() {
             isBusy={comparison.isInitialLoading || comparison.isRefreshing}
             onSubmit={comparison.submit}
           />
-          {data ? <button className="button" type="button" onClick={() => void comparison.refreshData()} disabled={comparison.isManualRefreshing}>
-            {comparison.isManualRefreshing ? 'Refreshing data…' : 'Refresh data'}
-          </button> : null}
+          {data ? (
+            <div className="refresh-control" aria-busy={comparison.isManualRefreshing}>
+              <button
+                className="button button--secondary"
+                type="button"
+                onClick={() => void comparison.refreshData()}
+                disabled={comparison.isManualRefreshing}
+              >
+                {comparison.isManualRefreshing ? 'Refreshing provider data…' : 'Refresh data'}
+              </button>
+              <div className="refresh-feedback" aria-live="polite" aria-atomic="true">
+                {comparison.refreshStatus ? <p>{comparison.refreshStatus}</p> : null}
+                {comparison.refreshWarnings.map((warning) => (
+                  <SectionWarning key={warning} label="Refresh:" message={warning} />
+                ))}
+              </div>
+            </div>
+          ) : null}
         </section>
 
         {comparison.isInitialLoading ? <LoadingSkeleton /> : null}
@@ -66,16 +87,24 @@ export function ComparePage() {
             <AiComparisonBrief key={`${data.left.ticker}:${data.right.ticker}:${data.provenance.lastUpdatedAt}`} leftTicker={data.left.ticker} rightTicker={data.right.ticker} />
 
             <ComparisonWarnings warnings={data.warnings} section="HISTORY" />
-            <PricePerformanceChart
-              performance={data.pricePerformance}
-              leftTicker={data.left.ticker}
-              rightTicker={data.right.ticker}
-              selectedPeriod={comparison.query.period}
-              selectedMode={comparison.query.mode}
-              isBusy={comparison.isRefreshing}
-              onPeriodChange={comparison.selectPeriod}
-              onModeChange={comparison.selectMode}
-            />
+            <Suspense fallback={(
+              <section className="panel chart-module-loading" role="status" aria-label="Loading performance chart">
+                <p className="section-eyebrow">Aligned daily data</p>
+                <h2>Price performance</h2>
+                <p>Loading the interactive chart…</p>
+              </section>
+            )}>
+              <PricePerformanceChart
+                performance={data.pricePerformance}
+                leftTicker={data.left.ticker}
+                rightTicker={data.right.ticker}
+                selectedPeriod={comparison.query.period}
+                selectedMode={comparison.query.mode}
+                isBusy={comparison.isRefreshing}
+                onPeriodChange={comparison.selectPeriod}
+                onModeChange={comparison.selectMode}
+              />
+            </Suspense>
 
             <section className="panel metrics-panel" aria-labelledby="financial-metrics-title">
               <div className="section-heading">

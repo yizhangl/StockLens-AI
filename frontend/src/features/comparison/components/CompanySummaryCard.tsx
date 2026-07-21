@@ -33,10 +33,14 @@ function CompanyLogo({ company }: { company: CompanySummary }) {
 }
 
 export function CompanySummaryCard({ company, side }: CompanySummaryCardProps) {
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false)
   const currency = company.currency ?? 'USD'
   const change = company.priceChange
   const changeClass = change === null ? 'neutral' : change > 0 ? 'positive' : change < 0 ? 'negative' : 'neutral'
   const website = safeExternalUrl(company.website)
+  const description = company.description || 'Company description is unavailable.'
+  const descriptionId = `${side}-company-description`
+  const canExpandDescription = Boolean(company.description && company.description.length > 180)
 
   return (
     <article className={`company-card company-card--${side}`} aria-labelledby={`${side}-company-title`}>
@@ -64,7 +68,23 @@ export function CompanySummaryCard({ company, side }: CompanySummaryCardProps) {
         <div><dt>Revenue (TTM)</dt><dd>{formatCompactCurrency(company.revenueTtm, currency)}</dd></div>
       </dl>
 
-      <p className="company-description" title={company.description ?? undefined}>{company.description || 'Company description is unavailable.'}</p>
+      <p
+        id={descriptionId}
+        className={`company-description${descriptionExpanded ? ' company-description--expanded' : ''}`}
+      >
+        {description}
+      </p>
+      {canExpandDescription ? (
+        <button
+          className="text-button company-description-toggle"
+          type="button"
+          aria-controls={descriptionId}
+          aria-expanded={descriptionExpanded}
+          onClick={() => setDescriptionExpanded((expanded) => !expanded)}
+        >
+          {descriptionExpanded ? 'Show less' : 'Read full description'}
+        </button>
+      ) : null}
       <div className="company-card__meta">
         <span>{[company.exchange, company.country].filter(Boolean).join(' · ') || 'Company profile'}</span>
         {website ? (

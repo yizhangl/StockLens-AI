@@ -2,6 +2,7 @@ import { getJson, postJson } from './client.ts'
 import type {
   ComparisonDashboard,
   ComparisonQuery,
+  ComparisonRefreshResult,
 } from '../features/comparison/types/comparison.ts'
 
 export function buildComparisonPath(query: ComparisonQuery): string {
@@ -30,6 +31,6 @@ export function generateComparisonBrief(
 
 export function refreshComparison(
   request: { tickers: string[]; regenerateBrief?: boolean },
-): Promise<{ tickers: string[]; regenerateBrief: boolean; warnings: string[] }> {
-  return postJson('/api/v1/comparisons/refresh', request)
+): Promise<ComparisonRefreshResult> {
+  return postJson<ComparisonRefreshResult>('/api/v1/comparisons/refresh', request)
 }

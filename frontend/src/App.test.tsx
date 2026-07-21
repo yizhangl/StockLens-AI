@@ -55,7 +55,7 @@ describe('App', () => {
 
     render(<App />)
     expect(await screen.findByRole('heading', { level: 2, name: 'GOOGL' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '6M' })).toHaveAttribute('aria-pressed', 'true')
+    expect(await screen.findByRole('button', { name: '6M' })).toHaveAttribute('aria-pressed', 'true')
     await userEvent.click(screen.getByRole('button', { name: '6M' }))
     expect(fetchMock).toHaveBeenCalledTimes(1)
 
@@ -128,5 +128,49 @@ describe('App', () => {
     expect(screen.getAllByText(/temporarily unavailable for MSFT/i)).toHaveLength(1)
     expect(screen.getByText('Right · News:')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /key financial metrics/i })).toBeInTheDocument()
+  })
+
+  it('announces partial manual refresh warnings and preserves the dashboard', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(comparisonFixture()))
+      .mockResolvedValueOnce(jsonResponse({
+        tickers: ['AAPL', 'MSFT'],
+        regenerateBrief: false,
+        warnings: ['Some data could not be refreshed for MSFT.'],
+      }))
+      .mockResolvedValueOnce(jsonResponse(comparisonFixture()))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'AAPL' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh data' }))
+
+    expect(await screen.findByText(/refresh completed with partial warnings/i)).toBeInTheDocument()
+    expect(screen.getByText(/could not be refreshed for MSFT/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'AAPL' })).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledTimes(3)
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: 'POST' })
+  })
+
+  it('preserves the dashboard when manual refresh fails', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse(comparisonFixture()))
+      .mockResolvedValueOnce(jsonResponse({
+        code: 'FINANCIAL_PROVIDER_ERROR',
+        message: 'Financial data is temporarily unavailable.',
+        timestamp: '2026-07-21T00:00:00Z',
+        path: '/api/v1/comparisons/refresh',
+        requestId: 'refresh-request',
+        details: [],
+      }, 502))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<App />)
+
+    expect(await screen.findByRole('heading', { level: 2, name: 'AAPL' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh data' }))
+
+    expect(await screen.findByText(/previous dashboard remains available/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'AAPL' })).toBeInTheDocument()
+    expect(screen.getByText(/financial data is temporarily unavailable/i)).toBeInTheDocument()
   })
 })

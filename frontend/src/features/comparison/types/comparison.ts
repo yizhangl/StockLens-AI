@@ -144,6 +144,12 @@ export interface ComparisonDashboard {
   warnings: ComparisonWarning[]
 }
 
+export interface ComparisonRefreshResult {
+  tickers: string[]
+  regenerateBrief: boolean
+  warnings: string[]
+}
+
 export type AiWinner = string | 'NEUTRAL' | 'INSUFFICIENT_DATA'
 export type GroundedSourceType =
   | 'COMPANY_PROFILE'
