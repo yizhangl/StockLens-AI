@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -11,6 +12,10 @@ import static org.mockito.Mockito.when;
 import com.stocklens.common.exception.InvalidNewsLimitException;
 import com.stocklens.common.exception.NewsProviderException;
 import com.stocklens.common.validation.TickerNormalizer;
+import com.stocklens.common.cache.JsonRedisCache;
+import com.stocklens.common.cache.StockLensCacheKeys;
+import com.stocklens.common.cache.StockLensCacheProperties;
+import com.stocklens.common.time.FreshnessPolicy;
 import com.stocklens.company.domain.Company;
 import com.stocklens.company.repository.CompanyRepository;
 import com.stocklens.company.service.CompanyService;
@@ -18,7 +23,13 @@ import com.stocklens.market.client.FinancialDataClient;
 import com.stocklens.market.client.model.CompanyProfileData;
 import com.stocklens.news.client.NewsDataClient;
 import com.stocklens.news.client.model.NewsFetchResult;
+import com.stocklens.news.domain.NewsArticle;
+import com.stocklens.news.domain.NewsRetrieval;
 import com.stocklens.news.service.NewsArticlePersistenceService.PersistenceResult;
+import com.stocklens.news.repository.NewsArticleRepository;
+import com.stocklens.news.repository.NewsRetrievalRepository;
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -38,6 +49,9 @@ class NewsQueryServiceTest {
     @Mock private CompanyService companyService;
     @Mock private NewsDataClient newsDataClient;
     @Mock private NewsArticlePersistenceService persistenceService;
+    @Mock private JsonRedisCache cache;
+    @Mock private NewsRetrievalRepository retrievalRepository;
+    @Mock private NewsArticleRepository articleRepository;
     private NewsQueryService service;
 
     @BeforeEach
@@ -49,7 +63,10 @@ class NewsQueryServiceTest {
                 companyService,
                 newsDataClient,
                 persistenceService,
-                new NewsArticleRelevanceService());
+                new NewsArticleRelevanceService(), cache, new StockLensCacheKeys(), new StockLensCacheProperties(null, null, null, null, null, null, null),
+                retrievalRepository, new FreshnessPolicy(Clock.fixed(NOW, ZoneOffset.UTC)), articleRepository);
+        org.mockito.Mockito.lenient().when(cache.get(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(com.stocklens.news.dto.NewsResponse.class))).thenReturn(java.util.Optional.empty());
+        org.mockito.Mockito.lenient().when(retrievalRepository.findFirstByCompany_IdOrderByRetrievedAtDescIdDesc(org.mockito.ArgumentMatchers.any())).thenReturn(Optional.empty());
     }
 
     @Test
@@ -116,6 +133,67 @@ class NewsQueryServiceTest {
         assertThatThrownBy(() -> service.getRecentNews("AAPL", 10))
                 .isInstanceOf(NewsProviderException.class);
         verify(persistenceService, never()).persistAndLoadRecent(any(), any(), anyInt());
+    }
+
+    @Test
+    void redisHitAvoidsRepositoriesAndProvider() {
+        var cached = new com.stocklens.news.dto.NewsResponse(
+                "AAPL", 10, "YAHOO_FINANCE", NOW, List.of(), List.of());
+        when(cache.get(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(com.stocklens.news.dto.NewsResponse.class)))
+                .thenReturn(Optional.of(cached));
+
+        assertThat(service.getRecentNews("AAPL", 10)).isSameAs(cached);
+        verify(companyRepository, never()).findByTicker(any());
+        verify(newsDataClient, never()).getRecentNews(any(), anyInt());
+    }
+
+    @Test
+    void freshSuccessfulEmptyMarkerAvoidsProviderAndIsCached() {
+        Company company = company();
+        when(companyRepository.findByTicker("AAPL")).thenReturn(Optional.of(company));
+        when(retrievalRepository.findFirstByCompany_IdOrderByRetrievedAtDescIdDesc(isNull()))
+                .thenReturn(Optional.of(new NewsRetrieval(company, NOW.minusSeconds(60), 0, "YAHOO_FINANCE")));
+
+        var response = service.getRecentNews("AAPL", 10);
+
+        assertThat(response.articles()).isEmpty();
+        verify(newsDataClient, never()).getRecentNews(any(), anyInt());
+        verify(cache).put(org.mockito.ArgumentMatchers.anyString(), any(), any());
+    }
+
+    @Test
+    void freshNonEmptyMarkerLoadsPersistedArticlesWithoutProvider() {
+        Company company = company();
+        NewsArticle article = org.mockito.Mockito.mock(NewsArticle.class);
+        when(article.getHeadline()).thenReturn("Apple launches a product");
+        when(article.getCompanies()).thenReturn(java.util.Set.of());
+        when(article.getPublishedAt()).thenReturn(NOW.minusSeconds(120));
+        when(article.getSourceName()).thenReturn("Example Wire");
+        when(article.getArticleUrl()).thenReturn("https://example.com/apple");
+        when(companyRepository.findByTicker("AAPL")).thenReturn(Optional.of(company));
+        when(retrievalRepository.findFirstByCompany_IdOrderByRetrievedAtDescIdDesc(isNull()))
+                .thenReturn(Optional.of(new NewsRetrieval(company, NOW.minusSeconds(60), 1, "YAHOO_FINANCE")));
+        when(articleRepository.findRecentByCompanyId(isNull(), any())).thenReturn(List.of(article));
+
+        assertThat(service.getRecentNews("AAPL", 10).articles()).hasSize(1);
+        verify(newsDataClient, never()).getRecentNews(any(), anyInt());
+    }
+
+    @Test
+    void markerExactlyAtTtlIsStaleAndCallsProvider() {
+        Company company = company();
+        NewsFetchResult fetch = new NewsFetchResult(List.of(), 0, "YAHOO_FINANCE", NOW);
+        when(companyRepository.findByTicker("AAPL")).thenReturn(Optional.of(company));
+        when(retrievalRepository.findFirstByCompany_IdOrderByRetrievedAtDescIdDesc(isNull()))
+                .thenReturn(Optional.of(new NewsRetrieval(company, NOW.minusSeconds(1800), 0, "YAHOO_FINANCE")));
+        when(newsDataClient.getRecentNews("AAPL", 10)).thenReturn(fetch);
+        when(persistenceService.persistAndLoadRecent(company, fetch, 20))
+                .thenReturn(new PersistenceResult(List.of(), 0));
+
+        service.getRecentNews("AAPL", 10);
+
+        verify(newsDataClient).getRecentNews("AAPL", 10);
+        verify(persistenceService).persistAndLoadRecent(company, fetch, 20);
     }
 
     private Company company() {

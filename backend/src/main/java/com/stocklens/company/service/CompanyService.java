@@ -5,6 +5,7 @@ import com.stocklens.company.repository.CompanyRepository;
 import com.stocklens.market.client.model.CompanyProfileData;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import java.util.Optional;
 
 @Service
 public class CompanyService {
@@ -41,6 +42,8 @@ public class CompanyService {
             return repository.saveAndFlush(concurrent);
         }
     }
+
+    public Optional<Company> findByTicker(String ticker) { return repository.findByTicker(ticker); }
 
     private void update(Company company, CompanyProfileData profile) {
         company.updateProfile(

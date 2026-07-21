@@ -27,6 +27,7 @@ import com.stocklens.comparison.model.ComparisonMode;
 import com.stocklens.comparison.model.ComparisonWarningSection;
 import com.stocklens.comparison.model.ComparisonWarningSide;
 import com.stocklens.comparison.service.ComparisonService;
+import com.stocklens.comparison.service.ComparisonRefreshService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -43,6 +44,7 @@ class ComparisonControllerTest {
 
     @Autowired private MockMvc mockMvc;
     @MockitoBean private ComparisonService comparisonService;
+    @MockitoBean private ComparisonRefreshService refreshService;
 
     @Test
     void returnsCompletePublicContractWithDefaultsAndExplicitNullAi() throws Exception {

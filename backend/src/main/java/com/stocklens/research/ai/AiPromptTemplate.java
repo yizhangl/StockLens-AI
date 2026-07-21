@@ -30,8 +30,16 @@ public class AiPromptTemplate {
                 """;
         String user = """
                 Compare %s and %s using the delimited SOURCE DATA below. Every factual category and risk must cite
-                supplied IDs only. Include valuation, profitability, growth, and financialHealth. The top-level
-                sourceIds must be the stable union of nested citations.
+                supplied IDs only. Include valuation, profitability, growth, and financialHealth.
+
+                Citation rules:
+                - Use only supplied source IDs.
+                - Use only the strongest evidence.
+                - Normally use 1-2 source IDs per advantage.
+                - Normally use 1-2 source IDs per risk.
+                - Use no more than 15 unique source IDs across the entire response.
+                - Do not cite every available source.
+                - Top-level sourceIds must be the deduplicated union of all nested citations.
 
                 SOURCE DATA:
                 %s

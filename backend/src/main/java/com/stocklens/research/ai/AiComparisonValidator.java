@@ -14,6 +14,7 @@ public class AiComparisonValidator {
     public ValidationResult validate(AiComparisonResult result, BuiltComparisonContext context) {
         List<String> failures = new ArrayList<>();
         if (result == null) return ValidationResult.invalid(List.of("empty response"));
+        result = normalize(result);
         text(result.overallSummary(), 180, "overall summary", failures);
         if (result.advantages() == null) failures.add("missing advantages");
         else {
@@ -26,6 +27,10 @@ public class AiComparisonValidator {
         if (risks == null) failures.add("missing risks list");
         else if (risks.size() > 6) failures.add("too many risks");
         else for (AiRiskResult risk : risks) validateRisk(risk, context, failures);
+        if (result.sourceIds() != null
+                && result.sourceIds().stream().anyMatch(id -> !context.sourcesById().containsKey(id))) {
+            failures.add("unknown source ID");
+        }
         if (containsProhibited(result)) failures.add("prohibited investment advice");
         if (!failures.isEmpty()) return ValidationResult.invalid(failures);
         List<String> union = stableUnion(result);
@@ -56,9 +61,12 @@ public class AiComparisonValidator {
     }
 
     private void sources(List<String> ids, BuiltComparisonContext context, List<String> failures, String label) {
-        if (ids == null || ids.isEmpty()) { failures.add(label + " missing sources"); return; }
-        if (ids.size() > 6 || new LinkedHashSet<>(ids).size() != ids.size()) failures.add(label + " invalid sources");
-        if (ids.stream().anyMatch(id -> id == null || !context.sourcesById().containsKey(id))) failures.add("unknown source ID");
+        if (ids == null || ids.isEmpty()) {
+            failures.add(label + " missing sources");
+            return;
+        }
+        if (ids.size() > 6) failures.add(label + " invalid sources");
+        if (ids.stream().anyMatch(id -> !context.sourcesById().containsKey(id))) failures.add("unknown source ID");
     }
 
     private void text(String value, int maxWords, String label, List<String> failures) {
@@ -82,10 +90,44 @@ public class AiComparisonValidator {
     }
     private void add(Set<String> ids, AiAdvantageResult value) { ids.addAll(value.sourceIds()); }
 
+    private AiComparisonResult normalize(AiComparisonResult result) {
+        AiAdvantages advantages = result.advantages() == null ? null : new AiAdvantages(
+                normalize(result.advantages().valuation()),
+                normalize(result.advantages().profitability()),
+                normalize(result.advantages().growth()),
+                normalize(result.advantages().financialHealth()));
+        List<AiRiskResult> risks = result.keyRisks() == null ? null : result.keyRisks().stream()
+                .map(this::normalize)
+                .toList();
+        return new AiComparisonResult(
+                result.overallSummary(), advantages, risks, normalizeSourceIds(result.sourceIds()));
+    }
+
+    private AiAdvantageResult normalize(AiAdvantageResult value) {
+        return value == null ? null : new AiAdvantageResult(
+                value.winner(), value.explanation(), normalizeSourceIds(value.sourceIds()));
+    }
+
+    private AiRiskResult normalize(AiRiskResult value) {
+        return value == null ? null : new AiRiskResult(
+                value.ticker(), value.text(), normalizeSourceIds(value.sourceIds()));
+    }
+
+    private List<String> normalizeSourceIds(List<String> ids) {
+        if (ids == null) return null;
+        LinkedHashSet<String> normalized = new LinkedHashSet<>();
+        for (String id : ids) {
+            if (id == null) continue;
+            String trimmed = id.trim();
+            if (!trimmed.isBlank()) normalized.add(trimmed);
+        }
+        return List.copyOf(normalized);
+    }
+
     public record ValidationResult(AiComparisonResult result, List<String> failures) {
         static ValidationResult valid(AiComparisonResult result) { return new ValidationResult(result, List.of()); }
         static ValidationResult invalid(List<String> failures) { return new ValidationResult(null, List.copyOf(failures)); }
         public boolean isValid() { return result != null; }
-        public String sanitizedFailures() { return String.join(", ", failures.stream().distinct().limit(5).toList()); }
+        public String sanitizedFailures() { return String.join(", ", failures.stream().distinct().toList()); }
     }
 }

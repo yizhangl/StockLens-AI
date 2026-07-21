@@ -3,8 +3,11 @@ package com.stocklens.news.repository;
 import com.stocklens.news.domain.NewsArticle;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.function.Function;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -35,14 +38,13 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, Long> 
             """)
     List<NewsArticle> findAllByIdsWithCompanies(@Param("ids") Collection<Long> ids);
 
-    @Query("""
-            select distinct article
-            from NewsArticle article
-            join fetch article.companies company
-            where company.id = :companyId
-            order by article.publishedAt desc, article.id desc
-            """)
-    List<NewsArticle> findRecentByCompanyId(@Param("companyId") Long companyId, Pageable pageable);
+    default List<NewsArticle> findRecentByCompanyId(Long companyId, Pageable pageable) {
+        List<Long> ids = findRecentIdsByCompanyId(companyId, pageable);
+        if (ids.isEmpty()) return List.of();
+        Map<Long, NewsArticle> articlesById = findAllByIdsWithCompanies(ids).stream()
+                .collect(Collectors.toMap(NewsArticle::getId, Function.identity()));
+        return ids.stream().map(articlesById::get).toList();
+    }
 
     @Modifying(flushAutomatically = true)
     @Query(value = """

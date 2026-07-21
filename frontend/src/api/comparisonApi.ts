@@ -22,8 +22,14 @@ export function fetchComparison(
 }
 
 export function generateComparisonBrief(
-  request: { leftTicker: string; rightTicker: string },
+  request: { leftTicker: string; rightTicker: string; forceRefresh?: boolean },
   signal?: AbortSignal,
 ): Promise<import('../features/comparison/types/comparison.ts').ComparisonResearchBrief> {
   return postJson('/api/v1/comparisons/research', request, { signal })
+}
+
+export function refreshComparison(
+  request: { tickers: string[]; regenerateBrief?: boolean },
+): Promise<{ tickers: string[]; regenerateBrief: boolean; warnings: string[] }> {
+  return postJson('/api/v1/comparisons/refresh', request)
 }

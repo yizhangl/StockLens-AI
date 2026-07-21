@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { fetchComparison } from '../../../api/comparisonApi.ts'
+import { fetchComparison, refreshComparison } from '../../../api/comparisonApi.ts'
 import { ApiError } from '../../../api/client.ts'
 import type {
   ComparisonDashboard,
@@ -38,6 +38,8 @@ export interface ComparisonState {
   selectPeriod: (period: ComparisonPeriod) => void
   selectMode: (mode: ComparisonMode) => void
   retry: () => void
+  refreshData: () => Promise<void>
+  isManualRefreshing: boolean
 }
 
 export function useComparison(): ComparisonState {
@@ -48,6 +50,7 @@ export function useComparison(): ComparisonState {
   const queryRef = useRef<ComparisonQuery>(initialQuery)
   const [error, setError] = useState<ApiError | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false)
   const requestSequence = useRef(0)
   const abortController = useRef<AbortController | null>(null)
 
@@ -116,6 +119,16 @@ export function useComparison(): ComparisonState {
   )
 
   const retry = useCallback(() => void load(queryRef.current, 'replace'), [load])
+  const refreshData = useCallback(async () => {
+    if (isManualRefreshing) return
+    setIsManualRefreshing(true)
+    setError(null)
+    try {
+      await refreshComparison({ tickers: [queryRef.current.left, queryRef.current.right] })
+      await load(queryRef.current, 'replace')
+    } catch (caught) { setError(toDisplayError(caught)) }
+    finally { setIsManualRefreshing(false) }
+  }, [isManualRefreshing, load])
 
   return {
     data,
@@ -127,5 +140,7 @@ export function useComparison(): ComparisonState {
     selectPeriod,
     selectMode,
     retry,
+    refreshData,
+    isManualRefreshing,
   }
 }

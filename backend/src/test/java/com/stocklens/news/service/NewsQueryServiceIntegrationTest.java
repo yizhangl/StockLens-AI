@@ -12,6 +12,7 @@ import com.stocklens.news.client.NewsDataClient;
 import com.stocklens.news.client.model.NewsArticleData;
 import com.stocklens.news.client.model.NewsFetchResult;
 import com.stocklens.news.repository.NewsArticleRepository;
+import com.stocklens.news.repository.NewsRetrievalRepository;
 import com.stocklens.support.IntegrationTestContainers;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -26,6 +27,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 @Import({IntegrationTestContainers.class, NewsQueryServiceIntegrationTest.FakeProviderConfiguration.class})
 @SpringBootTest
@@ -34,10 +36,17 @@ class NewsQueryServiceIntegrationTest {
     @Autowired private NewsQueryService service;
     @Autowired private NewsArticleRepository articleRepository;
     @Autowired private CompanyRepository companyRepository;
+    @Autowired private NewsRetrievalRepository retrievalRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private StringRedisTemplate redisTemplate;
 
     @AfterEach
     void cleanUp() {
+        redisTemplate.execute((org.springframework.data.redis.core.RedisCallback<Object>) connection -> {
+            connection.serverCommands().flushDb();
+            return null;
+        });
+        retrievalRepository.deleteAllInBatch();
         jdbcTemplate.update("DELETE FROM news_article_company");
         articleRepository.deleteAllInBatch();
         companyRepository.deleteAllInBatch();

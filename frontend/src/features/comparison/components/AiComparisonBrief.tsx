@@ -60,7 +60,7 @@ export function AiComparisonBrief({ leftTicker, rightTicker }: { leftTicker: str
           <h2 id="ai-brief-title">AI comparison brief</h2>
           <p className="ai-brief__note">Uses the latest persisted company data, metrics, news, and a 1Y performance summary.</p>
         </div>
-        <button className="button button--primary" type="button" onClick={() => void ai.generate()} disabled={ai.isGenerating}>
+        <button className="button button--primary" type="button" onClick={() => void ai.generate(Boolean(brief))} disabled={ai.isGenerating}>
           {ai.isGenerating ? 'Generating…' : brief ? 'Regenerate AI brief' : 'Generate AI brief'}
         </button>
       </div>
@@ -81,7 +81,7 @@ export function AiComparisonBrief({ leftTicker, rightTicker }: { leftTicker: str
               <ul>{brief.keyRisks.map((risk, index) => <li key={`${risk.ticker}-${index}`}><strong>{risk.ticker}</strong> — {risk.text}<SourceReferences ids={risk.sourceIds} brief={brief} /></li>)}</ul>
             )}
           </section>
-          <p className="ai-brief__meta">Generated {new Date(brief.generatedAt).toLocaleString()} · {brief.modelName} · {brief.promptVersion}</p>
+          <p className="ai-brief__meta">{brief.cached ? 'Reused cached brief' : 'Newly generated brief'} · {new Date(brief.generatedAt).toLocaleString()} · {brief.modelName} · {brief.promptVersion}</p>
         </div>
       ) : null}
     </section>

@@ -19,7 +19,7 @@ spring:
   ai:
     openai:
       api-key: ${OPENAI_API_KEY:}
-      base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
       chat:
         options:
           model: ${OPENAI_MODEL:}
@@ -34,6 +34,14 @@ management:
       show-details: never
 
 stocklens:
+  cache:
+    company-ttl: ${STOCKLENS_CACHE_COMPANY_TTL:24h}
+    market-ttl: ${STOCKLENS_CACHE_MARKET_TTL:15m}
+    metrics-ttl: ${STOCKLENS_CACHE_METRICS_TTL:6h}
+    history-ttl: ${STOCKLENS_CACHE_HISTORY_TTL:6h}
+    news-ttl: ${STOCKLENS_CACHE_NEWS_TTL:30m}
+    comparison-ttl: ${STOCKLENS_CACHE_COMPARISON_TTL:15m}
+    brief-ttl: ${STOCKLENS_CACHE_BRIEF_TTL:1h}
   providers:
     fmp:
       api-key: ${FMP_API_KEY:}

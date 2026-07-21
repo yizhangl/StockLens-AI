@@ -13,6 +13,9 @@ import com.stocklens.common.exception.InvalidPeriodException;
 import com.stocklens.common.exception.NewsProviderException;
 import com.stocklens.common.exception.StockNotFoundException;
 import com.stocklens.common.validation.TickerNormalizer;
+import com.stocklens.common.cache.JsonRedisCache;
+import com.stocklens.common.cache.StockLensCacheKeys;
+import com.stocklens.common.cache.StockLensCacheProperties;
 import com.stocklens.comparison.model.ComparisonMode;
 import com.stocklens.comparison.model.ComparisonWarningSection;
 import com.stocklens.comparison.model.ComparisonWarningSide;
@@ -52,6 +55,7 @@ class ComparisonServiceTest {
     @Mock private FinancialMetricsQueryService metricsQueryService;
     @Mock private HistoricalPriceQueryService historyQueryService;
     @Mock private NewsQueryService newsQueryService;
+    @Mock private JsonRedisCache cache;
 
     private MetricDefinitionRegistry registry;
     private ComparisonService service;
@@ -68,7 +72,8 @@ class ComparisonServiceTest {
                 historyQueryService,
                 newsQueryService,
                 new HistoricalSeriesAligner(),
-                new MetricComparisonService(registry));
+                new MetricComparisonService(registry), cache, new StockLensCacheKeys(), new StockLensCacheProperties(null, null, null, null, null, null, null));
+        org.mockito.Mockito.lenient().when(cache.get(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(com.stocklens.comparison.dto.ComparisonDashboardResponse.class))).thenReturn(java.util.Optional.empty());
         apple = company("AAPL", "Apple Inc.", BASE);
         microsoft = company("MSFT", "Microsoft Corporation", BASE.plusSeconds(1));
     }

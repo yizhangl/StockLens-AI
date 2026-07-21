@@ -183,7 +183,7 @@ export interface ComparisonResearchBrief {
   promptVersion: string
   generatedAt: string
   dataCutoffAt: string
-  cached: false
+  cached: boolean
 }
 
 export interface ComparisonQuery {

@@ -31,7 +31,7 @@ class InfrastructureIntegrationTest {
     private StringRedisTemplate redisTemplate;
 
     @Test
-    void appliesMilestoneSevenMigrationsAndConnectsToPostgres() {
+    void appliesMilestoneEightMigrationsAndConnectsToPostgres() {
         List<String> appliedVersions = jdbcTemplate.queryForList(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank",
                 String.class);
@@ -46,7 +46,7 @@ class InfrastructureIntegrationTest {
                 String.class);
 
         assertThat(jdbcTemplate.queryForObject("SELECT 1", Integer.class)).isEqualTo(1);
-        assertThat(appliedVersions).containsExactly("0", "1", "2", "3", "4", "5", "6");
+        assertThat(appliedVersions).containsExactly("0", "1", "2", "3", "4", "5", "6", "7");
         assertThat(domainTables).containsExactly(
                 "company",
                 "comparison_brief",
@@ -55,7 +55,8 @@ class InfrastructureIntegrationTest {
                 "historical_price",
                 "market_snapshot",
                 "news_article",
-                "news_article_company");
+                "news_article_company",
+                "news_retrieval");
     }
 
     @Test

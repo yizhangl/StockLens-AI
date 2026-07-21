@@ -29,6 +29,9 @@ export function ComparePage() {
             isBusy={comparison.isInitialLoading || comparison.isRefreshing}
             onSubmit={comparison.submit}
           />
+          {data ? <button className="button" type="button" onClick={() => void comparison.refreshData()} disabled={comparison.isManualRefreshing}>
+            {comparison.isManualRefreshing ? 'Refreshing data…' : 'Refresh data'}
+          </button> : null}
         </section>
 
         {comparison.isInitialLoading ? <LoadingSkeleton /> : null}
@@ -60,7 +63,7 @@ export function ComparePage() {
             </section>
             <ComparisonWarnings warnings={data.warnings} section="MARKET" />
 
-            <AiComparisonBrief key={`${data.left.ticker}:${data.right.ticker}`} leftTicker={data.left.ticker} rightTicker={data.right.ticker} />
+            <AiComparisonBrief key={`${data.left.ticker}:${data.right.ticker}:${data.provenance.lastUpdatedAt}`} leftTicker={data.left.ticker} rightTicker={data.right.ticker} />
 
             <ComparisonWarnings warnings={data.warnings} section="HISTORY" />
             <PricePerformanceChart
