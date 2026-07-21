@@ -35,6 +35,15 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, Long> 
             """)
     List<NewsArticle> findAllByIdsWithCompanies(@Param("ids") Collection<Long> ids);
 
+    @Query("""
+            select distinct article
+            from NewsArticle article
+            join fetch article.companies company
+            where company.id = :companyId
+            order by article.publishedAt desc, article.id desc
+            """)
+    List<NewsArticle> findRecentByCompanyId(@Param("companyId") Long companyId, Pageable pageable);
+
     @Modifying(flushAutomatically = true)
     @Query(value = """
             INSERT INTO news_article (

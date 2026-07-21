@@ -1,7 +1,7 @@
 import { AppHeader } from '../components/layout/AppHeader.tsx'
 import { ErrorState } from '../components/common/ErrorState.tsx'
 import { LoadingSkeleton } from '../components/common/LoadingSkeleton.tsx'
-import { AiBriefPlaceholder } from '../features/comparison/components/AiBriefPlaceholder.tsx'
+import { AiComparisonBrief } from '../features/comparison/components/AiComparisonBrief.tsx'
 import { CompanySummaryCard } from '../features/comparison/components/CompanySummaryCard.tsx'
 import { ComparisonWarnings } from '../features/comparison/components/ComparisonWarnings.tsx'
 import { DataProvenanceFooter } from '../features/comparison/components/DataProvenanceFooter.tsx'
@@ -60,7 +60,7 @@ export function ComparePage() {
             </section>
             <ComparisonWarnings warnings={data.warnings} section="MARKET" />
 
-            <AiBriefPlaceholder />
+            <AiComparisonBrief key={`${data.left.ticker}:${data.right.ticker}`} leftTicker={data.left.ticker} rightTicker={data.right.ticker} />
 
             <ComparisonWarnings warnings={data.warnings} section="HISTORY" />
             <PricePerformanceChart

@@ -16,6 +16,13 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+      chat:
+        options:
+          model: ${OPENAI_MODEL:}
 
 management:
   endpoints:
@@ -39,3 +46,9 @@ stocklens:
       connect-timeout: ${YAHOO_FINANCE_CONNECT_TIMEOUT:2s}
       read-timeout: ${YAHOO_FINANCE_READ_TIMEOUT:5s}
       max-attempts: ${YAHOO_FINANCE_MAX_ATTEMPTS:2}
+  research:
+    ai:
+      api-key: ${OPENAI_API_KEY:}
+      model: ${OPENAI_MODEL:}
+      temperature: ${AI_COMPARISON_TEMPERATURE:0.2}
+      max-tokens: ${AI_COMPARISON_MAX_TOKENS:1200}

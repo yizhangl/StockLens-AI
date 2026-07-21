@@ -144,6 +144,48 @@ export interface ComparisonDashboard {
   warnings: ComparisonWarning[]
 }
 
+export type AiWinner = string | 'NEUTRAL' | 'INSUFFICIENT_DATA'
+export type GroundedSourceType =
+  | 'COMPANY_PROFILE'
+  | 'MARKET_SNAPSHOT'
+  | 'FINANCIAL_METRIC'
+  | 'HISTORICAL_PERFORMANCE'
+  | 'NEWS_ARTICLE'
+
+export interface AiAdvantage {
+  winner: AiWinner
+  explanation: string
+  sourceIds: string[]
+}
+
+export interface ComparisonResearchBrief {
+  id: number
+  leftTicker: string
+  rightTicker: string
+  overallSummary: string
+  advantages: {
+    valuation: AiAdvantage
+    profitability: AiAdvantage
+    growth: AiAdvantage
+    financialHealth: AiAdvantage
+  }
+  keyRisks: Array<{ ticker: string; text: string; sourceIds: string[] }>
+  sources: Array<{
+    id: string
+    type: GroundedSourceType
+    ticker: string
+    label: string
+    sourceName: string
+    url: string | null
+    asOf: string | null
+  }>
+  modelName: string
+  promptVersion: string
+  generatedAt: string
+  dataCutoffAt: string
+  cached: false
+}
+
 export interface ComparisonQuery {
   left: string
   right: string

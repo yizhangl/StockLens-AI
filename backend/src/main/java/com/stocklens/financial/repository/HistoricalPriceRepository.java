@@ -12,4 +12,6 @@ public interface HistoricalPriceRepository extends JpaRepository<HistoricalPrice
 
     List<HistoricalPrice> findByCompany_IdAndProviderNameOrderByTradingDateAsc(
             Long companyId, String providerName);
+
+    List<HistoricalPrice> findByCompany_IdOrderByTradingDateAscRetrievedAtDescIdDesc(Long companyId);
 }
