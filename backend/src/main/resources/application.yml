@@ -19,7 +19,7 @@ spring:
   ai:
     openai:
       api-key: ${OPENAI_API_KEY:}
-      base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
       chat:
         options:
           model: ${OPENAI_MODEL:}
