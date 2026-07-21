@@ -18,6 +18,9 @@ import com.stocklens.research.dto.AdvantagesResponse;
 import com.stocklens.research.dto.ComparisonResearchResponse;
 import com.stocklens.research.dto.GroundedSourceResponse;
 import com.stocklens.research.dto.RiskResponse;
+import com.stocklens.common.cache.JsonRedisCache;
+import com.stocklens.common.cache.StockLensCacheKeys;
+import com.stocklens.common.cache.StockLensCacheProperties;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -38,21 +41,35 @@ public class ComparisonResearchService {
     private final ComparisonBriefPersistenceService persistenceService;
     private final AiComparisonProperties properties;
     private final Clock clock;
+    private final JsonRedisCache cache;
+    private final StockLensCacheKeys cacheKeys;
+    private final StockLensCacheProperties cacheProperties;
 
     public ComparisonResearchService(ComparisonSourceDataLoader sourceLoader,
             ComparisonContextBuilder contextBuilder, AiPromptTemplate promptTemplate,
             ComparisonAiClient aiClient, AiComparisonValidator validator,
             ComparisonInputHashService inputHashService, ComparisonBriefPersistenceService persistenceService,
-            AiComparisonProperties properties, Clock clock) {
+            AiComparisonProperties properties, Clock clock, JsonRedisCache cache, StockLensCacheKeys cacheKeys,
+            StockLensCacheProperties cacheProperties) {
         this.sourceLoader = sourceLoader; this.contextBuilder = contextBuilder;
         this.promptTemplate = promptTemplate; this.aiClient = aiClient; this.validator = validator;
         this.inputHashService = inputHashService; this.persistenceService = persistenceService;
         this.properties = properties; this.clock = clock;
+        this.cache = cache; this.cacheKeys = cacheKeys; this.cacheProperties = cacheProperties;
     }
 
     public ComparisonResearchResponse generate(String rawLeftTicker, String rawRightTicker) {
+        return generate(rawLeftTicker, rawRightTicker, false);
+    }
+
+    public ComparisonResearchResponse generate(String rawLeftTicker, String rawRightTicker, boolean forceRefresh) {
         BuiltComparisonContext context = contextBuilder.build(sourceLoader.load(rawLeftTicker, rawRightTicker));
         String inputHash = inputHashService.hash(context);
+        String cacheKey = cacheKeys.brief(context.leftCompany().getTicker(), context.rightCompany().getTicker(), inputHash);
+        if (!forceRefresh) {
+            var cached = cache.get(cacheKey, ComparisonResearchResponse.class);
+            if (cached.isPresent()) return orient(cached.get(), context.leftCompany().getTicker(), context.rightCompany().getTicker(), true);
+        }
         ValidationResult validation = validator.validate(aiClient.generate(promptTemplate.build(context)), context);
         boolean repaired = false;
         if (!validation.isValid()) {
@@ -68,7 +85,9 @@ public class ComparisonResearchService {
         }
         Instant generatedAt = Instant.now(clock);
         ComparisonBrief brief = persistenceService.persist(context, validation.result(), properties.model(), generatedAt, inputHash);
-        return response(brief, context, validation.result());
+        ComparisonResearchResponse response = response(brief, context, validation.result());
+        cache.put(cacheKey, response, cacheProperties.briefTtl());
+        return response;
     }
 
     private ComparisonResearchResponse response(ComparisonBrief brief, BuiltComparisonContext context,
@@ -78,6 +97,12 @@ public class ComparisonResearchService {
                 result.keyRisks().stream().map(risk -> new RiskResponse(risk.ticker(), risk.text(), risk.sourceIds())).toList(),
                 result.sourceIds().stream().map(context.sourcesById()::get).map(this::source).toList(),
                 brief.getModelName(), brief.getPromptVersion(), brief.getGeneratedAt(), brief.getDataCutoffAt(), false);
+    }
+
+    private ComparisonResearchResponse orient(ComparisonResearchResponse response, String left, String right, boolean cached) {
+        return new ComparisonResearchResponse(response.id(), left, right, response.overallSummary(), response.advantages(),
+                response.keyRisks(), response.sources(), response.modelName(), response.promptVersion(), response.generatedAt(),
+                response.dataCutoffAt(), cached);
     }
 
     private AdvantagesResponse advantages(AiComparisonResult result) {

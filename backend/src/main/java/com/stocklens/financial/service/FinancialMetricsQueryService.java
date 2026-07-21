@@ -13,6 +13,9 @@ import com.stocklens.financial.metric.MetricDefinitionRegistry;
 import com.stocklens.market.client.FinancialDataClient;
 import com.stocklens.market.client.model.CompanyProfileData;
 import com.stocklens.market.client.model.FinancialMetricsData;
+import com.stocklens.common.cache.JsonRedisCache;
+import com.stocklens.common.cache.StockLensCacheKeys;
+import com.stocklens.common.cache.StockLensCacheProperties;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -26,22 +29,29 @@ public class FinancialMetricsQueryService {
     private final CompanyService companyService;
     private final FinancialMetricSnapshotService snapshotService;
     private final MetricDefinitionRegistry registry;
+    private final JsonRedisCache cache;
+    private final StockLensCacheKeys cacheKeys;
+    private final StockLensCacheProperties cacheProperties;
 
     public FinancialMetricsQueryService(
             TickerNormalizer tickerNormalizer,
             FinancialDataClient financialDataClient,
             CompanyService companyService,
             FinancialMetricSnapshotService snapshotService,
-            MetricDefinitionRegistry registry) {
+            MetricDefinitionRegistry registry, JsonRedisCache cache, StockLensCacheKeys cacheKeys,
+            StockLensCacheProperties cacheProperties) {
         this.tickerNormalizer = tickerNormalizer;
         this.financialDataClient = financialDataClient;
         this.companyService = companyService;
         this.snapshotService = snapshotService;
         this.registry = registry;
+        this.cache = cache; this.cacheKeys = cacheKeys; this.cacheProperties = cacheProperties;
     }
 
     public FinancialMetricsResponse getMetrics(String rawTicker) {
         String ticker = tickerNormalizer.normalize(rawTicker);
+        var cached = cache.get(cacheKeys.metrics(ticker), FinancialMetricsResponse.class);
+        if (cached.isPresent()) return cached.get();
         CompanyProfileData profile = financialDataClient.getCompanyProfile(ticker);
         FinancialMetricsData data = financialDataClient.getFinancialMetrics(ticker)
                 .withCurrency(profile.currency());
@@ -56,7 +66,7 @@ public class FinancialMetricsQueryService {
                 .filter(metric -> metric.value() == null)
                 .forEach(metric -> warnings.add(new MetricWarningResponse(
                         metric.code(), "The selected provider did not supply this metric directly.")));
-        return new FinancialMetricsResponse(
+        FinancialMetricsResponse response = new FinancialMetricsResponse(
                 ticker,
                 snapshot.getCurrency(),
                 snapshot.getReportedAt(),
@@ -64,6 +74,8 @@ public class FinancialMetricsQueryService {
                 snapshot.getProviderName(),
                 metrics,
                 List.copyOf(warnings));
+        cache.put(cacheKeys.metrics(ticker), response, cacheProperties.metricsTtl());
+        return response;
     }
 
     private MetricValueResponse toMetric(

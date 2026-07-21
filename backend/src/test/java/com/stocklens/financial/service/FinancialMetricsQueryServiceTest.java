@@ -8,6 +8,9 @@ import static org.mockito.Mockito.when;
 
 import com.stocklens.common.exception.FinancialProviderException;
 import com.stocklens.common.validation.TickerNormalizer;
+import com.stocklens.common.cache.JsonRedisCache;
+import com.stocklens.common.cache.StockLensCacheKeys;
+import com.stocklens.common.cache.StockLensCacheProperties;
 import com.stocklens.company.domain.Company;
 import com.stocklens.company.service.CompanyService;
 import com.stocklens.financial.domain.FinancialMetricSnapshot;
@@ -34,13 +37,15 @@ class FinancialMetricsQueryServiceTest {
     @Mock private FinancialDataClient client;
     @Mock private CompanyService companyService;
     @Mock private FinancialMetricSnapshotService snapshotService;
+    @Mock private JsonRedisCache cache;
     private FinancialMetricsQueryService service;
 
     @BeforeEach
     void setUp() {
         service = new FinancialMetricsQueryService(
                 new TickerNormalizer(), client, companyService, snapshotService,
-                new MetricDefinitionRegistry());
+                new MetricDefinitionRegistry(), cache, new StockLensCacheKeys(), new StockLensCacheProperties(null, null, null, null, null, null, null));
+        org.mockito.Mockito.lenient().when(cache.get(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(com.stocklens.financial.dto.FinancialMetricsResponse.class))).thenReturn(java.util.Optional.empty());
     }
 
     @Test

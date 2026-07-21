@@ -13,6 +13,9 @@ import com.stocklens.news.dto.NewsArticleResponse;
 import com.stocklens.news.dto.NewsResponse;
 import com.stocklens.news.dto.NewsWarningResponse;
 import com.stocklens.news.service.NewsArticlePersistenceService.PersistenceResult;
+import com.stocklens.common.cache.JsonRedisCache;
+import com.stocklens.common.cache.StockLensCacheKeys;
+import com.stocklens.common.cache.StockLensCacheProperties;
 import java.util.Comparator;
 import java.util.List;
 import org.springframework.stereotype.Service;
@@ -32,6 +35,9 @@ public class NewsQueryService {
     private final NewsDataClient newsDataClient;
     private final NewsArticlePersistenceService persistenceService;
     private final NewsArticleRelevanceService relevanceService;
+    private final JsonRedisCache cache;
+    private final StockLensCacheKeys cacheKeys;
+    private final StockLensCacheProperties cacheProperties;
 
     public NewsQueryService(
             TickerNormalizer tickerNormalizer,
@@ -40,7 +46,8 @@ public class NewsQueryService {
             CompanyService companyService,
             NewsDataClient newsDataClient,
             NewsArticlePersistenceService persistenceService,
-            NewsArticleRelevanceService relevanceService) {
+            NewsArticleRelevanceService relevanceService, JsonRedisCache cache, StockLensCacheKeys cacheKeys,
+            StockLensCacheProperties cacheProperties) {
         this.tickerNormalizer = tickerNormalizer;
         this.companyRepository = companyRepository;
         this.financialDataClient = financialDataClient;
@@ -48,11 +55,14 @@ public class NewsQueryService {
         this.newsDataClient = newsDataClient;
         this.persistenceService = persistenceService;
         this.relevanceService = relevanceService;
+        this.cache = cache; this.cacheKeys = cacheKeys; this.cacheProperties = cacheProperties;
     }
 
     public NewsResponse getRecentNews(String rawTicker, int limit) {
         String ticker = tickerNormalizer.normalize(rawTicker);
         validateLimit(limit);
+        var cached = cache.get(cacheKeys.news(ticker, limit), NewsResponse.class);
+        if (cached.isPresent()) return cached.get();
         Company company = companyRepository.findByTicker(ticker)
                 .orElseGet(() -> companyService.upsert(
                         financialDataClient.getCompanyProfile(ticker)));
@@ -80,13 +90,15 @@ public class NewsQueryService {
                         "INVALID_PROVIDER_RECORDS_SKIPPED",
                         "Some news records were unavailable because the provider data was invalid.",
                         persisted.skippedArticleCount()));
-        return new NewsResponse(
+        NewsResponse response = new NewsResponse(
                 ticker,
                 limit,
                 fetchResult.providerName(),
                 fetchResult.retrievedAt(),
                 relevantArticles.stream().map(this::toResponse).toList(),
                 warnings);
+        if (warnings.isEmpty()) cache.put(cacheKeys.news(ticker, limit), response, cacheProperties.newsTtl());
+        return response;
     }
 
     private int candidateLimit(int publicLimit) {

@@ -18,7 +18,7 @@ export function useAiBrief(leftTicker: string, rightTicker: string) {
 
   useEffect(() => () => controller.current?.abort(), [])
 
-  const generate = useCallback(async () => {
+  const generate = useCallback(async (forceRefresh = false) => {
     if (isGenerating) return
     controller.current?.abort()
     const next = new AbortController()
@@ -27,7 +27,7 @@ export function useAiBrief(leftTicker: string, rightTicker: string) {
     setError(null)
     setIsGenerating(true)
     try {
-      const response = await generateComparisonBrief({ leftTicker, rightTicker }, next.signal)
+      const response = await generateComparisonBrief({ leftTicker, rightTicker, forceRefresh }, next.signal)
       if (request === sequence.current && !next.signal.aborted) setBrief(response)
     } catch (caught) {
       if (request !== sequence.current || next.signal.aborted) return
@@ -37,5 +37,6 @@ export function useAiBrief(leftTicker: string, rightTicker: string) {
     }
   }, [isGenerating, leftTicker, rightTicker])
 
-  return { brief, error, isGenerating, generate }
+  const clear = useCallback(() => { controller.current?.abort(); setBrief(null); setError(null) }, [])
+  return { brief, error, isGenerating, generate, clear }
 }

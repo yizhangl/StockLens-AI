@@ -7,6 +7,9 @@ import com.stocklens.common.exception.FinancialProviderRateLimitedException;
 import com.stocklens.common.exception.NewsProviderException;
 import com.stocklens.common.exception.NewsProviderRateLimitedException;
 import com.stocklens.common.exception.StockNotFoundException;
+import com.stocklens.common.cache.JsonRedisCache;
+import com.stocklens.common.cache.StockLensCacheKeys;
+import com.stocklens.common.cache.StockLensCacheProperties;
 import com.stocklens.common.validation.TickerNormalizer;
 import com.stocklens.comparison.dto.ComparisonDashboardResponse;
 import com.stocklens.comparison.dto.ComparisonNewsArticleResponse;
@@ -15,9 +18,11 @@ import com.stocklens.comparison.dto.ComparisonProvenanceResponse;
 import com.stocklens.comparison.dto.ComparisonWarningResponse;
 import com.stocklens.comparison.dto.CompanySummaryResponse;
 import com.stocklens.comparison.dto.PricePerformanceResponse;
+import com.stocklens.comparison.dto.MetricGroupResponse;
 import com.stocklens.comparison.model.ComparisonMode;
 import com.stocklens.comparison.model.ComparisonWarningSection;
 import com.stocklens.comparison.model.ComparisonWarningSide;
+import com.stocklens.comparison.model.ComparisonOutcome;
 import com.stocklens.company.domain.Company;
 import com.stocklens.company.service.StockQueryService;
 import com.stocklens.company.service.StockQueryService.CompanyResolution;
@@ -60,6 +65,9 @@ public class ComparisonService {
     private final NewsQueryService newsQueryService;
     private final HistoricalSeriesAligner historicalSeriesAligner;
     private final MetricComparisonService metricComparisonService;
+    private final JsonRedisCache cache;
+    private final StockLensCacheKeys cacheKeys;
+    private final StockLensCacheProperties cacheProperties;
 
     public ComparisonService(
             TickerNormalizer tickerNormalizer,
@@ -68,7 +76,8 @@ public class ComparisonService {
             HistoricalPriceQueryService historyQueryService,
             NewsQueryService newsQueryService,
             HistoricalSeriesAligner historicalSeriesAligner,
-            MetricComparisonService metricComparisonService) {
+            MetricComparisonService metricComparisonService, JsonRedisCache cache,
+            StockLensCacheKeys cacheKeys, StockLensCacheProperties cacheProperties) {
         this.tickerNormalizer = tickerNormalizer;
         this.stockQueryService = stockQueryService;
         this.metricsQueryService = metricsQueryService;
@@ -76,6 +85,9 @@ public class ComparisonService {
         this.newsQueryService = newsQueryService;
         this.historicalSeriesAligner = historicalSeriesAligner;
         this.metricComparisonService = metricComparisonService;
+        this.cache = cache;
+        this.cacheKeys = cacheKeys;
+        this.cacheProperties = cacheProperties;
     }
 
     public ComparisonDashboardResponse compare(
@@ -91,6 +103,9 @@ public class ComparisonService {
         }
         PricePeriod period = PricePeriod.parse(rawPeriod);
         ComparisonMode mode = ComparisonMode.parse(rawMode);
+        String cacheKey = cacheKeys.comparison(leftTicker, rightTicker, period.code(), mode.name());
+        var cached = cache.get(cacheKey, ComparisonDashboardResponse.class);
+        if (cached.isPresent()) return leftTicker.compareTo(rightTicker) <= 0 ? withCached(cached.get()) : flip(cached.get(), true);
         String comparisonId = comparisonId(leftTicker, rightTicker, period, mode);
 
         CompanyResolution leftResolution = stockQueryService.resolveCompany(leftTicker);
@@ -191,7 +206,49 @@ public class ComparisonService {
                 mode,
                 response.warnings().size(),
                 elapsedMillis);
+        if (response.warnings().isEmpty()) cache.put(cacheKey, leftTicker.compareTo(rightTicker) <= 0 ? response : flip(response, false), cacheProperties.comparisonTtl());
         return response;
+    }
+
+    /** Cache values are canonical (alphabetical pair); callers retain their requested orientation. */
+    private ComparisonDashboardResponse flip(ComparisonDashboardResponse response, boolean cached) {
+        PricePerformanceResponse performance = response.pricePerformance();
+        PricePerformanceResponse flippedPerformance = new PricePerformanceResponse(
+                performance.period(), performance.mode(), performance.startDate(), performance.endDate(), performance.pointCount(),
+                performance.rightReturnPercent(), performance.leftReturnPercent(), performance.rightCurrency(), performance.leftCurrency(),
+                performance.series().stream().map(point -> new com.stocklens.comparison.dto.PricePerformancePoint(
+                        point.date(), point.rightValue(), point.leftValue())).toList());
+        List<MetricGroupResponse> groups = response.metricGroups().stream().map(group -> new MetricGroupResponse(group.category(),
+                group.metrics().stream().map(metric -> new com.stocklens.comparison.dto.MetricComparisonResponse(
+                        metric.code(), metric.displayName(), metric.category(), metric.unit(), metric.rightValue(), metric.leftValue(),
+                        metric.comparisonStrategy(), flipOutcome(metric.outcome()), metric.explanation())).toList())).toList();
+        ComparisonProvenanceResponse p = response.provenance();
+        ComparisonProvenanceResponse provenance = new ComparisonProvenanceResponse(p.financialProvider(), p.newsProvider(),
+                p.rightCompanyUpdatedAt(), p.leftCompanyUpdatedAt(), p.rightMarketRetrievedAt(), p.leftMarketRetrievedAt(),
+                p.rightMetricsRetrievedAt(), p.leftMetricsRetrievedAt(), p.rightHistoryRetrievedAt(), p.leftHistoryRetrievedAt(),
+                p.rightNewsRetrievedAt(), p.leftNewsRetrievedAt(), p.historyStartDate(), p.historyEndDate(), p.lastUpdatedAt(), cached || p.cached());
+        return new ComparisonDashboardResponse(response.comparisonId(), response.right(), response.left(), flippedPerformance, groups,
+                new ComparisonNewsResponse(response.news().right(), response.news().left()), response.aiBrief(), provenance,
+                response.warnings().stream().map(w -> new ComparisonWarningResponse(w.section(), flipSide(w.side()), w.code(), w.message())).toList());
+    }
+
+    private ComparisonDashboardResponse withCached(ComparisonDashboardResponse response) {
+        ComparisonProvenanceResponse p = response.provenance();
+        ComparisonProvenanceResponse provenance = new ComparisonProvenanceResponse(p.financialProvider(), p.newsProvider(),
+                p.leftCompanyUpdatedAt(), p.rightCompanyUpdatedAt(), p.leftMarketRetrievedAt(), p.rightMarketRetrievedAt(),
+                p.leftMetricsRetrievedAt(), p.rightMetricsRetrievedAt(), p.leftHistoryRetrievedAt(), p.rightHistoryRetrievedAt(),
+                p.leftNewsRetrievedAt(), p.rightNewsRetrievedAt(), p.historyStartDate(), p.historyEndDate(), p.lastUpdatedAt(), true);
+        return new ComparisonDashboardResponse(response.comparisonId(), response.left(), response.right(), response.pricePerformance(),
+                response.metricGroups(), response.news(), response.aiBrief(), provenance, response.warnings());
+    }
+
+    private ComparisonOutcome flipOutcome(ComparisonOutcome outcome) {
+        return outcome == ComparisonOutcome.LEFT ? ComparisonOutcome.RIGHT
+                : outcome == ComparisonOutcome.RIGHT ? ComparisonOutcome.LEFT : outcome;
+    }
+    private ComparisonWarningSide flipSide(ComparisonWarningSide side) {
+        return side == ComparisonWarningSide.LEFT ? ComparisonWarningSide.RIGHT
+                : side == ComparisonWarningSide.RIGHT ? ComparisonWarningSide.LEFT : side;
     }
 
     private <T> T loadFinancialSection(

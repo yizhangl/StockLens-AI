@@ -11,6 +11,9 @@ import static org.mockito.Mockito.when;
 import com.stocklens.common.exception.InvalidNewsLimitException;
 import com.stocklens.common.exception.NewsProviderException;
 import com.stocklens.common.validation.TickerNormalizer;
+import com.stocklens.common.cache.JsonRedisCache;
+import com.stocklens.common.cache.StockLensCacheKeys;
+import com.stocklens.common.cache.StockLensCacheProperties;
 import com.stocklens.company.domain.Company;
 import com.stocklens.company.repository.CompanyRepository;
 import com.stocklens.company.service.CompanyService;
@@ -38,6 +41,7 @@ class NewsQueryServiceTest {
     @Mock private CompanyService companyService;
     @Mock private NewsDataClient newsDataClient;
     @Mock private NewsArticlePersistenceService persistenceService;
+    @Mock private JsonRedisCache cache;
     private NewsQueryService service;
 
     @BeforeEach
@@ -49,7 +53,8 @@ class NewsQueryServiceTest {
                 companyService,
                 newsDataClient,
                 persistenceService,
-                new NewsArticleRelevanceService());
+                new NewsArticleRelevanceService(), cache, new StockLensCacheKeys(), new StockLensCacheProperties(null, null, null, null, null, null, null));
+        org.mockito.Mockito.lenient().when(cache.get(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(com.stocklens.news.dto.NewsResponse.class))).thenReturn(java.util.Optional.empty());
     }
 
     @Test

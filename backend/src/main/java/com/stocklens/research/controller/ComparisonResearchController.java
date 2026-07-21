@@ -16,7 +16,10 @@ public class ComparisonResearchController {
 
     @PostMapping("/research")
     ComparisonResearchResponse research(@RequestBody ComparisonResearchRequest request) {
-        return researchService.generate(request == null ? null : request.leftTicker(),
-                request == null ? null : request.rightTicker());
+        String left = request == null ? null : request.leftTicker();
+        String right = request == null ? null : request.rightTicker();
+        return request != null && Boolean.TRUE.equals(request.forceRefresh())
+                ? researchService.generate(left, right, true)
+                : researchService.generate(left, right);
     }
 }
