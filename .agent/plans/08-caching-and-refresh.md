@@ -91,6 +91,17 @@ Complete (2026-07-21)
 - Diff check: `git diff --check` — passed. The complete working-tree review found no old Flyway migration edits, provider calls in automated tests, secrets, `.env` files, generated build output, or Milestone 9 work.
 - Manual live-provider verification was intentionally skipped: no FMP, Yahoo Finance, OpenAI, or localhost endpoint was called. The automated suite covers the cache/freshness and reuse paths in isolation.
 
+## Live research SQL regression correction (2026-07-21)
+
+- Live `POST /api/v1/comparisons/research` requests exposed PostgreSQL `SQLState 42P01` at position 603. PostgreSQL Testcontainers reproduced the exact failure through the production research service and identified `NewsArticleRepository.findRecentByCompanyId` as the failing method; Flyway and schema V7 were healthy.
+- Root cause: Hibernate 7.4 rewrote the method's JPQL collection `join fetch` plus `Pageable` into a paginated subquery whose predicate referenced `c1_0.company_id` before the `news_article_company c1_0` alias appeared in that subquery's `FROM` clause.
+- Query fix: `findRecentByCompanyId` now uses the repository's existing deterministic two-step query boundary: select ordered article IDs with the company join and page limit, then fetch those articles and their companies by ID and restore the ID order. It does not load all articles or filter them in Java.
+- Persisted brief lookup fix: the derived association-path `findFirst...` query was replaced with native `findNewestMatchingId`, which selects only `comparison_brief.id` by canonical company IDs, input hash, prompt version, and model, ordered by `generated_at DESC, id DESC LIMIT 1`. The service loads the brief entity by ID and source-link rows separately.
+- Added `ComparisonBriefRepositoryIntegrationTest`, which uses PostgreSQL Testcontainers to verify canonical IDs, multiple matching rows, exclusion of nonmatching hash/prompt/model rows, generated-time ordering, and ID-descending tie-breaking through the exact production query.
+- Added `ComparisonResearchServiceIntegrationTest`, which executes the full persisted source-data loading path with PostgreSQL and Redis Testcontainers and proves that a Redis miss reuses a matching PostgreSQL brief with `cached=true` without calling the fake AI client.
+- Focused regression result: `Tests run: 10, Failures: 0, Errors: 0, Skipped: 0`; `BUILD SUCCESS` for the brief repository, research service, and news persistence integration tests.
+- Final backend result: `env -u FMP_API_KEY -u OPENAI_API_KEY ./mvnw clean verify` — `Tests run: 144, Failures: 0, Errors: 0, Skipped: 0`; `BUILD SUCCESS`.
+
 ## Known limitations
 
 - Manual live-provider smoke testing remains deferred by design for this validation-only turn.

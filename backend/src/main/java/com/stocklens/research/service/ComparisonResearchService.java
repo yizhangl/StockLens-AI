@@ -77,9 +77,13 @@ public class ComparisonResearchService {
             var cached = cache.get(cacheKey, ComparisonResearchResponse.class);
             if (cached.isPresent()) return orient(cached.get(), context.leftCompany().getTicker(), context.rightCompany().getTicker(), true);
             boolean canonical = context.leftCompany().getTicker().compareTo(context.rightCompany().getTicker()) <= 0;
-            var persisted = briefRepository.findFirstByLeftCompany_IdAndRightCompany_IdAndInputHashAndPromptVersionAndModelNameOrderByGeneratedAtDescIdDesc(
-                    canonical ? context.leftCompany().getId() : context.rightCompany().getId(), canonical ? context.rightCompany().getId() : context.leftCompany().getId(),
-                    inputHash, AiPromptTemplate.VERSION, properties.model());
+            var persisted = briefRepository.findNewestMatchingId(
+                            canonical ? context.leftCompany().getId() : context.rightCompany().getId(),
+                            canonical ? context.rightCompany().getId() : context.leftCompany().getId(),
+                            inputHash,
+                            AiPromptTemplate.VERSION,
+                            properties.model())
+                    .flatMap(briefRepository::findById);
             if (persisted.isPresent() && persisted.get().getGeneratedAt().isAfter(Instant.now(clock).minus(cacheProperties.briefTtl()))) {
                 try {
                     var links = sourceRepository.findByComparisonBrief(persisted.get());
