@@ -101,8 +101,9 @@ public class ComparisonResearchService {
         boolean repaired = false;
         if (!validation.isValid()) {
             repaired = true;
+            String validationFailures = validation.sanitizedFailures();
             validation = validator.validate(aiClient.generate(
-                    promptTemplate.build(context).withRepair(validation.sanitizedFailures())), context);
+                    promptTemplate.build(context).withRepair(validationFailures)), context);
         }
         if (!validation.isValid()) {
             log.warn("AI comparison validation failed left={} right={} repaired={} categories={}",
