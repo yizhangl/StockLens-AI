@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { buildComparisonPath, fetchComparison } from './comparisonApi.ts'
+import { buildComparisonPath, fetchComparison, generateComparisonBrief } from './comparisonApi.ts'
 import type { ComparisonDashboard } from '../features/comparison/types/comparison.ts'
 
 const query = { left: 'AAPL', right: 'MSFT', period: '1Y', mode: 'RETURN' } as const
@@ -63,5 +63,22 @@ describe('comparison API', () => {
 
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('offline')))
     await expect(fetchComparison(query)).rejects.toMatchObject({ code: 'NETWORK_ERROR' })
+  })
+
+  it('posts the explicitly requested AI brief with its abort signal', async () => {
+    const brief = { id: 4, leftTicker: 'AAPL', rightTicker: 'MSFT' }
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify(brief), {
+      status: 200, headers: { 'content-type': 'application/json' },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const controller = new AbortController()
+
+    await expect(generateComparisonBrief({ leftTicker: 'AAPL', rightTicker: 'MSFT' }, controller.signal)).resolves.toEqual(brief)
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/comparisons/research', {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leftTicker: 'AAPL', rightTicker: 'MSFT' }),
+      signal: controller.signal,
+    })
   })
 })

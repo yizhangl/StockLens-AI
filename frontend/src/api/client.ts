@@ -91,3 +91,43 @@ export async function getJson<T>(
 
   return body as T
 }
+
+export async function postJson<T>(
+  path: string,
+  body: unknown,
+  options: { signal?: AbortSignal } = {},
+): Promise<T> {
+  let response: Response
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: options.signal,
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    throw new ApiError('Unable to connect to StockLens AI. Please try again.', {
+      status: 0,
+      code: 'NETWORK_ERROR',
+    })
+  }
+
+  const contentType = response.headers.get('content-type') ?? ''
+  let parsed: unknown = null
+  if (contentType.includes('application/json')) {
+    try { parsed = await response.json() } catch { /* mapped below */ }
+  }
+  if (!response.ok) {
+    if (isApiErrorResponse(parsed)) {
+      throw new ApiError(parsed.message, {
+        status: response.status, code: parsed.code, requestId: parsed.requestId, details: parsed.details,
+      })
+    }
+    throw new ApiError('StockLens AI could not generate this brief.', { status: response.status, code: 'REQUEST_FAILED' })
+  }
+  if (!contentType.includes('application/json') || parsed === null) {
+    throw new ApiError('StockLens AI returned an unreadable response.', { status: response.status, code: 'INVALID_RESPONSE' })
+  }
+  return parsed as T
+}

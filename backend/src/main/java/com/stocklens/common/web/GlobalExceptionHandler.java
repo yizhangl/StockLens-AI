@@ -11,6 +11,10 @@ import com.stocklens.common.exception.InvalidNewsLimitException;
 import com.stocklens.common.exception.NewsProviderException;
 import com.stocklens.common.exception.NewsProviderRateLimitedException;
 import com.stocklens.common.exception.StockNotFoundException;
+import com.stocklens.research.ai.AiGenerationUnavailableException;
+import com.stocklens.research.ai.AiProviderException;
+import com.stocklens.research.ai.AiRateLimitedException;
+import com.stocklens.research.ai.InvalidAiResponseException;
 import com.stocklens.common.response.ApiErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
@@ -165,6 +169,37 @@ public class GlobalExceptionHandler {
                 "DATA_UNAVAILABLE",
                 exception.getMessage(),
                 request);
+    }
+
+    @ExceptionHandler(AiGenerationUnavailableException.class)
+    ResponseEntity<ApiErrorResponse> handleAiUnavailable(
+            AiGenerationUnavailableException exception, HttpServletRequest request) {
+        return response(HttpStatus.SERVICE_UNAVAILABLE, "DATA_UNAVAILABLE",
+                "AI comparison generation is not configured.", request);
+    }
+
+    @ExceptionHandler(AiRateLimitedException.class)
+    ResponseEntity<ApiErrorResponse> handleAiRateLimited(
+            AiRateLimitedException exception, HttpServletRequest request) {
+        return response(HttpStatus.TOO_MANY_REQUESTS, "RATE_LIMITED",
+                "AI comparison generation is temporarily rate limited.", request);
+    }
+
+    @ExceptionHandler(AiProviderException.class)
+    ResponseEntity<ApiErrorResponse> handleAiProvider(
+            AiProviderException exception, HttpServletRequest request) {
+        log.warn("AI comparison provider failure requestId={} exceptionType={}", requestId(request),
+                exception.getCause() == null ? exception.getClass().getSimpleName()
+                        : exception.getCause().getClass().getSimpleName());
+        return response(HttpStatus.BAD_GATEWAY, "AI_PROVIDER_ERROR",
+                "AI comparison generation is temporarily unavailable.", request);
+    }
+
+    @ExceptionHandler(InvalidAiResponseException.class)
+    ResponseEntity<ApiErrorResponse> handleInvalidAiResponse(
+            InvalidAiResponseException exception, HttpServletRequest request) {
+        return response(HttpStatus.BAD_GATEWAY, "INVALID_AI_RESPONSE",
+                "The AI response could not be validated.", request);
     }
 
     @ExceptionHandler(Exception.class)

@@ -1,4 +1,4 @@
-import { getJson } from './client.ts'
+import { getJson, postJson } from './client.ts'
 import type {
   ComparisonDashboard,
   ComparisonQuery,
@@ -19,4 +19,11 @@ export function fetchComparison(
   signal?: AbortSignal,
 ): Promise<ComparisonDashboard> {
   return getJson<ComparisonDashboard>(buildComparisonPath(query), { signal })
+}
+
+export function generateComparisonBrief(
+  request: { leftTicker: string; rightTicker: string },
+  signal?: AbortSignal,
+): Promise<import('../features/comparison/types/comparison.ts').ComparisonResearchBrief> {
+  return postJson('/api/v1/comparisons/research', request, { signal })
 }
