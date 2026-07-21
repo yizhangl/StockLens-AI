@@ -7,8 +7,8 @@ import com.stocklens.news.client.model.NewsArticleData;
 import com.stocklens.news.client.model.NewsFetchResult;
 import com.stocklens.news.domain.NewsArticle;
 import com.stocklens.news.repository.NewsArticleRepository;
-import com.stocklens.news.repository.NewsRetrievalRepository;
 import com.stocklens.news.domain.NewsRetrieval;
+import com.stocklens.news.repository.NewsRetrievalRepository;
 import com.stocklens.news.service.CanonicalArticleUrlService.CanonicalArticleUrl;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -35,7 +35,8 @@ public class NewsArticlePersistenceService {
     public NewsArticlePersistenceService(
             NewsArticleRepository articleRepository,
             CompanyRepository companyRepository,
-            CanonicalArticleUrlService canonicalUrlService, NewsRetrievalRepository retrievalRepository) {
+            CanonicalArticleUrlService canonicalUrlService,
+            NewsRetrievalRepository retrievalRepository) {
         this.articleRepository = articleRepository;
         this.companyRepository = companyRepository;
         this.canonicalUrlService = canonicalUrlService;
@@ -50,7 +51,8 @@ public class NewsArticlePersistenceService {
         CandidateResult candidateResult = candidates(fetchResult);
 
         if (fetchResult.articles().isEmpty()) {
-            retrievalRepository.saveAndFlush(new NewsRetrieval(managedCompany, fetchResult.retrievedAt(), 0, fetchResult.providerName()));
+            retrievalRepository.saveAndFlush(new NewsRetrieval(
+                    managedCompany, fetchResult.retrievedAt(), 0, fetchResult.providerName()));
             return new PersistenceResult(List.of(), candidateResult.skippedArticleCount());
         }
         if (candidateResult.candidates().isEmpty()) {
@@ -81,7 +83,11 @@ public class NewsArticlePersistenceService {
             articleRepository.associateWithCompany(article.getId(), managedCompany.getId());
         }
         articleRepository.flush();
-        retrievalRepository.saveAndFlush(new NewsRetrieval(managedCompany, fetchResult.retrievedAt(), candidateResult.candidates().size(), fetchResult.providerName()));
+        retrievalRepository.saveAndFlush(new NewsRetrieval(
+                managedCompany,
+                fetchResult.retrievedAt(),
+                candidateResult.candidates().size(),
+                fetchResult.providerName()));
 
         List<Long> recentIds = articleRepository.findRecentIdsByCompanyId(
                 managedCompany.getId(), PageRequest.of(0, limit));

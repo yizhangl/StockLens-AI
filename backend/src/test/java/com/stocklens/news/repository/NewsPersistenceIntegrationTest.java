@@ -30,13 +30,32 @@ class NewsPersistenceIntegrationTest {
     @Autowired private NewsArticleRepository articleRepository;
     @Autowired private CompanyRepository companyRepository;
     @Autowired private NewsArticlePersistenceService persistenceService;
+    @Autowired private NewsRetrievalRepository retrievalRepository;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     @AfterEach
     void cleanUp() {
+        retrievalRepository.deleteAllInBatch();
         jdbcTemplate.update("DELETE FROM news_article_company");
         articleRepository.deleteAllInBatch();
         companyRepository.deleteAllInBatch();
+    }
+
+    @Test
+    void persistsSuccessfulEmptyRetrievalAndSelectsNewestMarkerDeterministically() {
+        Company apple = companyRepository.saveAndFlush(company("AAPL"));
+
+        persistenceService.persistAndLoadRecent(
+                apple, new NewsFetchResult(List.of(), 0, "YAHOO_FINANCE", NOW.minusSeconds(60)), 10);
+        persistenceService.persistAndLoadRecent(
+                apple, new NewsFetchResult(List.of(), 0, "YAHOO_FINANCE", NOW), 10);
+
+        assertThat(retrievalRepository.count()).isEqualTo(2);
+        assertThat(retrievalRepository.findFirstByCompany_IdOrderByRetrievedAtDescIdDesc(apple.getId()))
+                .get().satisfies(marker -> {
+                    assertThat(marker.getRetrievedAt()).isEqualTo(NOW);
+                    assertThat(marker.getResultCount()).isZero();
+                });
     }
 
     @Test

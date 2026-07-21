@@ -22,10 +22,13 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.TreeMap;
 import org.springframework.stereotype.Service;
 
 @Service
 public class HistoricalPriceQueryService {
+
+    static final int BOUNDARY_TOLERANCE_DAYS = 7;
 
     private final TickerNormalizer tickerNormalizer;
     private final FinancialDataClient financialDataClient;
@@ -65,22 +68,32 @@ public class HistoricalPriceQueryService {
         PriceDateRange range = period.range(clock);
         Company existing = companyService.findByTicker(ticker).orElse(null);
         if (existing != null) {
-            List<HistoricalPrice> persisted = repository.findByCompany_IdOrderByTradingDateAscRetrievedAtDescIdDesc(existing.getId());
-            if (complete(persisted, range) && freshness.isFresh(persisted.stream().map(HistoricalPrice::getRetrievedAt).max(Instant::compareTo).orElse(null), cacheProperties.historyTtl())) {
+            List<HistoricalPrice> persisted = usableSeries(
+                    repository.findByCompany_IdOrderByTradingDateAscRetrievedAtDescIdDesc(existing.getId()), range);
+            Instant seriesRetrievedAt = persisted.stream()
+                    .map(HistoricalPrice::getRetrievedAt)
+                    .min(Instant::compareTo)
+                    .orElse(null);
+            if (isComplete(persisted, range)
+                    && freshness.isFresh(seriesRetrievedAt, cacheProperties.historyTtl())) {
                 HistoricalPriceResponse response = response(ticker, period, range, persisted);
                 cache.put(cacheKeys.history(ticker, period.code()), response, cacheProperties.historyTtl()); return response;
             }
         }
-        CompanyProfileData profile = financialDataClient.getCompanyProfile(ticker);
+        CompanyProfileData profile = existing == null ? financialDataClient.getCompanyProfile(ticker) : null;
+        String currency = profile == null
+                ? repository.findByCompany_IdOrderByTradingDateAscRetrievedAtDescIdDesc(existing.getId()).stream()
+                        .map(HistoricalPrice::getCurrency).filter(value -> value != null && !value.isBlank()).findFirst().orElse(null)
+                : profile.currency();
         List<HistoricalPriceData> providerPrices = financialDataClient
                 .getHistoricalPrices(ticker, range.from(), range.to())
                 .stream()
-                .map(point -> point.withCurrency(profile.currency()))
+                .map(point -> point.withCurrency(currency))
                 .toList();
         if (providerPrices.isEmpty()) {
             throw new DataUnavailableException("Historical prices are unavailable for " + ticker + ".");
         }
-        Company company = companyService.upsert(profile);
+        Company company = existing == null ? companyService.upsert(profile) : existing;
         String providerName = providerPrices.getFirst().providerName();
         List<HistoricalPrice> prices = historicalPriceService.upsert(
                 company, providerName, range.from(), range.to(), providerPrices);
@@ -110,12 +123,28 @@ public class HistoricalPriceQueryService {
                 prices.stream().map(this::toPoint).toList());
     }
 
-    private boolean complete(List<HistoricalPrice> prices, PriceDateRange range) {
-        var valid = prices.stream().filter(p -> p.getTradingDate() != null && p.getClosePrice() != null && p.getClosePrice().signum() > 0)
-                .collect(java.util.stream.Collectors.toMap(HistoricalPrice::getTradingDate, p -> p, (a, b) -> a, java.util.TreeMap::new));
-        if (valid.size() < 2) return false;
-        if (range.from() == null) return valid.firstKey().isBefore(valid.lastKey());
-        return !valid.firstKey().isAfter(range.from()) && !valid.lastKey().isBefore(range.to());
+    List<HistoricalPrice> usableSeries(List<HistoricalPrice> prices, PriceDateRange range) {
+        TreeMap<LocalDate, HistoricalPrice> byDate = new TreeMap<>();
+        prices.stream()
+                .filter(price -> price != null
+                        && price.getTradingDate() != null
+                        && price.getClosePrice() != null
+                        && price.getClosePrice().signum() > 0)
+                .filter(price -> range.from() == null
+                        || !price.getTradingDate().isBefore(range.from().minusDays(BOUNDARY_TOLERANCE_DAYS)))
+                .filter(price -> !price.getTradingDate().isAfter(range.to().plusDays(BOUNDARY_TOLERANCE_DAYS)))
+                .forEach(price -> byDate.putIfAbsent(price.getTradingDate(), price));
+        return List.copyOf(byDate.values());
+    }
+
+    boolean isComplete(List<HistoricalPrice> prices, PriceDateRange range) {
+        if (prices.size() < 2) return false;
+        LocalDate first = prices.getFirst().getTradingDate();
+        LocalDate last = prices.getLast().getTradingDate();
+        if (!first.isBefore(last)) return false;
+        if (range.from() == null) return true;
+        return !first.isAfter(range.from().plusDays(BOUNDARY_TOLERANCE_DAYS))
+                && !last.isBefore(range.to().minusDays(BOUNDARY_TOLERANCE_DAYS));
     }
 
     private HistoricalPricePointResponse toPoint(HistoricalPrice price) {
