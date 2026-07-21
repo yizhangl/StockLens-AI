@@ -10,7 +10,10 @@ recommend trades, predict prices, or provide personalized investment guidance.
 
 ## Product Preview
 
-![StockLens AI comparison dashboard showing company cards, an AI brief, performance chart, metrics, and news](docs/images/stocklens-final-ui.png)
+![StockLens AI comparison dashboard](docs/images/stocklens-final-ui1.png)
+![StockLens AI comparison dashboard](docs/images/stocklens-final-ui2.png)
+![StockLens AI comparison dashboard](docs/images/stocklens-final-ui3.png)
+![StockLens AI comparison dashboard](docs/images/stocklens-final-ui4.png)
 
 ## Key Features
 
