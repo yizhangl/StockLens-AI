@@ -16,6 +16,8 @@ import com.stocklens.market.client.model.FinancialMetricsData;
 import com.stocklens.common.cache.JsonRedisCache;
 import com.stocklens.common.cache.StockLensCacheKeys;
 import com.stocklens.common.cache.StockLensCacheProperties;
+import com.stocklens.common.time.FreshnessPolicy;
+import com.stocklens.financial.repository.FinancialMetricSnapshotRepository;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +34,8 @@ public class FinancialMetricsQueryService {
     private final JsonRedisCache cache;
     private final StockLensCacheKeys cacheKeys;
     private final StockLensCacheProperties cacheProperties;
+    private final FinancialMetricSnapshotRepository repository;
+    private final FreshnessPolicy freshness;
 
     public FinancialMetricsQueryService(
             TickerNormalizer tickerNormalizer,
@@ -39,25 +43,42 @@ public class FinancialMetricsQueryService {
             CompanyService companyService,
             FinancialMetricSnapshotService snapshotService,
             MetricDefinitionRegistry registry, JsonRedisCache cache, StockLensCacheKeys cacheKeys,
-            StockLensCacheProperties cacheProperties) {
+            StockLensCacheProperties cacheProperties, FinancialMetricSnapshotRepository repository,
+            FreshnessPolicy freshness) {
         this.tickerNormalizer = tickerNormalizer;
         this.financialDataClient = financialDataClient;
         this.companyService = companyService;
         this.snapshotService = snapshotService;
         this.registry = registry;
         this.cache = cache; this.cacheKeys = cacheKeys; this.cacheProperties = cacheProperties;
+        this.repository = repository; this.freshness = freshness;
     }
 
     public FinancialMetricsResponse getMetrics(String rawTicker) {
         String ticker = tickerNormalizer.normalize(rawTicker);
         var cached = cache.get(cacheKeys.metrics(ticker), FinancialMetricsResponse.class);
         if (cached.isPresent()) return cached.get();
+        Company existing = companyService.findByTicker(ticker).orElse(null);
+        if (existing != null) {
+            FinancialMetricSnapshot persisted = repository.findFirstByCompany_IdOrderByRetrievedAtDescIdDesc(existing.getId()).orElse(null);
+            if (persisted != null && freshness.isFresh(persisted.getRetrievedAt(), cacheProperties.metricsTtl())) {
+                FinancialMetricsResponse response = response(ticker, persisted);
+                cache.put(cacheKeys.metrics(ticker), response, cacheProperties.metricsTtl());
+                return response;
+            }
+        }
         CompanyProfileData profile = financialDataClient.getCompanyProfile(ticker);
         FinancialMetricsData data = financialDataClient.getFinancialMetrics(ticker)
                 .withCurrency(profile.currency());
         Company company = companyService.upsert(profile);
         FinancialMetricSnapshot snapshot = snapshotService.create(company, data);
 
+        FinancialMetricsResponse response = response(ticker, snapshot);
+        cache.put(cacheKeys.metrics(ticker), response, cacheProperties.metricsTtl());
+        return response;
+    }
+
+    private FinancialMetricsResponse response(String ticker, FinancialMetricSnapshot snapshot) {
         List<MetricValueResponse> metrics = registry.all().stream()
                 .map(definition -> toMetric(definition, snapshot))
                 .toList();
@@ -66,7 +87,7 @@ public class FinancialMetricsQueryService {
                 .filter(metric -> metric.value() == null)
                 .forEach(metric -> warnings.add(new MetricWarningResponse(
                         metric.code(), "The selected provider did not supply this metric directly.")));
-        FinancialMetricsResponse response = new FinancialMetricsResponse(
+        return new FinancialMetricsResponse(
                 ticker,
                 snapshot.getCurrency(),
                 snapshot.getReportedAt(),
@@ -74,8 +95,6 @@ public class FinancialMetricsQueryService {
                 snapshot.getProviderName(),
                 metrics,
                 List.copyOf(warnings));
-        cache.put(cacheKeys.metrics(ticker), response, cacheProperties.metricsTtl());
-        return response;
     }
 
     private MetricValueResponse toMetric(

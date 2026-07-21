@@ -9,7 +9,13 @@ import static org.mockito.Mockito.when;
 
 import com.stocklens.common.exception.FinancialProviderException;
 import com.stocklens.common.validation.TickerNormalizer;
+import com.stocklens.common.time.FreshnessPolicy;
+import com.stocklens.common.cache.JsonRedisCache;
+import com.stocklens.common.cache.StockLensCacheKeys;
+import com.stocklens.common.cache.StockLensCacheProperties;
 import com.stocklens.company.domain.Company;
+import com.stocklens.company.repository.CompanyRepository;
+import com.stocklens.market.repository.MarketSnapshotRepository;
 import com.stocklens.market.client.FinancialDataClient;
 import com.stocklens.market.client.model.CompanyProfileData;
 import com.stocklens.market.client.model.MarketSnapshotData;
@@ -35,13 +41,19 @@ class StockQueryServiceTest {
 
     @Mock
     private MarketSnapshotService marketSnapshotService;
+    @Mock private CompanyRepository companyRepository;
+    @Mock private MarketSnapshotRepository marketRepository;
+    @Mock private JsonRedisCache cache;
 
     private StockQueryService service;
 
     @BeforeEach
     void setUp() {
         service = new StockQueryService(
-                new TickerNormalizer(), financialDataClient, companyService, marketSnapshotService);
+                new TickerNormalizer(), financialDataClient, companyService, marketSnapshotService, companyRepository, marketRepository,
+                new FreshnessPolicy(java.time.Clock.systemUTC()), cache, new StockLensCacheKeys(), new StockLensCacheProperties(null, null, null, null, null, null, null));
+        org.mockito.Mockito.lenient().when(companyRepository.findByTicker(org.mockito.ArgumentMatchers.anyString())).thenReturn(java.util.Optional.empty());
+        org.mockito.Mockito.lenient().when(cache.get(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any())).thenReturn(java.util.Optional.empty());
     }
 
     @Test
@@ -61,21 +73,23 @@ class StockQueryServiceTest {
         assertThat(result.latestMarketSnapshot()).isSameAs(snapshot);
         InOrder order = inOrder(financialDataClient, companyService, marketSnapshotService);
         order.verify(financialDataClient).getCompanyProfile("AAPL");
-        order.verify(financialDataClient).getMarketSnapshot("AAPL");
         order.verify(companyService).upsert(profile);
+        order.verify(financialDataClient).getMarketSnapshot("AAPL");
         order.verify(marketSnapshotService).create(company, quote.withCurrency("USD"));
     }
 
     @Test
     void doesNotPersistWhenQuoteRetrievalFails() {
         CompanyProfileData profile = profile();
+        Company company = company();
         when(financialDataClient.getCompanyProfile("AAPL")).thenReturn(profile);
+        when(companyService.upsert(profile)).thenReturn(company);
         when(financialDataClient.getMarketSnapshot("AAPL"))
                 .thenThrow(new FinancialProviderException("provider failure"));
 
         assertThatThrownBy(() -> service.getStock("AAPL"))
                 .isInstanceOf(FinancialProviderException.class);
-        verify(companyService, never()).upsert(profile);
+        verify(companyService).upsert(profile);
         verify(marketSnapshotService, never()).create(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }
 

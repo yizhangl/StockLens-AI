@@ -38,14 +38,17 @@ class FinancialMetricsQueryServiceTest {
     @Mock private CompanyService companyService;
     @Mock private FinancialMetricSnapshotService snapshotService;
     @Mock private JsonRedisCache cache;
+    @Mock private com.stocklens.financial.repository.FinancialMetricSnapshotRepository repository;
     private FinancialMetricsQueryService service;
 
     @BeforeEach
     void setUp() {
         service = new FinancialMetricsQueryService(
                 new TickerNormalizer(), client, companyService, snapshotService,
-                new MetricDefinitionRegistry(), cache, new StockLensCacheKeys(), new StockLensCacheProperties(null, null, null, null, null, null, null));
+                new MetricDefinitionRegistry(), cache, new StockLensCacheKeys(), new StockLensCacheProperties(null, null, null, null, null, null, null), repository,
+                new com.stocklens.common.time.FreshnessPolicy(java.time.Clock.systemUTC()));
         org.mockito.Mockito.lenient().when(cache.get(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.eq(com.stocklens.financial.dto.FinancialMetricsResponse.class))).thenReturn(java.util.Optional.empty());
+        org.mockito.Mockito.lenient().when(companyService.findByTicker(org.mockito.ArgumentMatchers.anyString())).thenReturn(java.util.Optional.empty());
     }
 
     @Test

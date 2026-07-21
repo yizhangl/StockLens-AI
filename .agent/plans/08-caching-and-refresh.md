@@ -7,8 +7,9 @@ In progress (2026-07-21)
 ## Current state
 
 - PostgreSQL is the durable store and Redis is already available through Docker Compose and Spring Data Redis.
-- Company, quote, metrics, history, and news reads currently persist provider data but invoke providers for normal reads.
-- The comparison endpoint assembles every response afresh. The research endpoint persists a brief but does not reuse an equivalent persisted brief.
+- A partial implementation now supplies a best-effort JSON Redis facade, typed TTL configuration, central keys, comparison cache orientation adaptation, Redis brief reuse, the manual refresh endpoint, and frontend refresh controls.
+- Metrics, history, and news currently have Redis read/write hooks, but those hooks still call their providers after a Redis miss instead of checking fresh PostgreSQL data. Company and market do not yet have the required cache-aside behavior.
+- The research endpoint can reuse a Redis brief but still calls AI after a Redis miss; it does not reuse a matching persisted `ComparisonBrief`.
 - Milestones 1–7 are present in the working tree and are deliberately treated as the starting point for this milestone.
 
 ## Scope and phases
@@ -58,5 +59,9 @@ In progress (2026-07-21)
 - [x] Inspect design, current implementation, tests, prior plan, and working diff.
 - [x] Implement Redis JSON cache infrastructure, TTL properties, cache keys, comparison caching, AI Redis reuse, and manual refresh endpoint.
 - [x] Implement frontend refresh and cached-status behavior.
-- [ ] Complete PostgreSQL freshness fallback for every feature read and persisted-brief reuse; add the required dedicated cache/freshness/refresh test matrix.
-- [ ] Run full milestone validation after the remaining cache-aside work is complete.
+- [ ] Run and record the clean-verification baseline.
+- [ ] Add one `FreshnessPolicy` driven by the injected `Clock` (null/exact-boundary/stale/future behavior).
+- [ ] Complete Redis → fresh PostgreSQL → provider flows for company, market, metrics, history, and news. History must require at least two usable points spanning its requested range; news requires a durable empty-result retrieval marker.
+- [ ] Add persisted `ComparisonBrief` reuse by canonical pair, input hash, prompt version, model, newest generation time, and ID; reconstruct only validated persisted response data.
+- [ ] Expand unit, controller, application-level provider-call, orientation, refresh, and Redis Testcontainers coverage.
+- [ ] Run full backend/frontend validation and manual cache/Redis-failure checks; review the complete diff and update this plan with evidence.
