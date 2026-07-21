@@ -60,8 +60,9 @@ In progress (2026-07-21)
 - [x] Implement Redis JSON cache infrastructure, TTL properties, cache keys, comparison caching, AI Redis reuse, and manual refresh endpoint.
 - [x] Implement frontend refresh and cached-status behavior.
 - [ ] Run and record the clean-verification baseline.
-- [ ] Add one `FreshnessPolicy` driven by the injected `Clock` (null/exact-boundary/stale/future behavior).
-- [ ] Complete Redis → fresh PostgreSQL → provider flows for company, market, metrics, history, and news. History must require at least two usable points spanning its requested range; news requires a durable empty-result retrieval marker.
-- [ ] Add persisted `ComparisonBrief` reuse by canonical pair, input hash, prompt version, model, newest generation time, and ID; reconstruct only validated persisted response data.
+- [x] Add one `FreshnessPolicy` driven by the injected `Clock` (null/exact-boundary/stale/future behavior).
+- [x] Complete durable-first company, market, and financial-metrics reads.
+- [x] Add persisted `ComparisonBrief` lookup/reuse by canonical pair, input hash, prompt version, model, newest generation time, and ID. Stored source-link IDs are checked against the current grounded context before response reconstruction.
+- [ ] Complete durable-first history and news reads. History completeness rule: at least two usable points, with a point at or before the requested start and a point at or after the requested end (or the provider's MAX-range end); a single row is never sufficient. News requires a forward-only durable retrieval marker so a valid empty provider result is distinguishable from no retrieval or failure.
 - [ ] Expand unit, controller, application-level provider-call, orientation, refresh, and Redis Testcontainers coverage.
 - [ ] Run full backend/frontend validation and manual cache/Redis-failure checks; review the complete diff and update this plan with evidence.

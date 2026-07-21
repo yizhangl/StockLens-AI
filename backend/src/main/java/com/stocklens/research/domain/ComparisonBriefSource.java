@@ -78,4 +78,6 @@ public class ComparisonBriefSource {
         @Override
         public int hashCode() { return Objects.hash(comparisonBrief, sourceReference); }
     }
+
+    public String getSourceReference() { return sourceReference; }
 }

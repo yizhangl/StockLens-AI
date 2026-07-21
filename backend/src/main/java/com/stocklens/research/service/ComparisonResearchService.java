@@ -21,6 +21,8 @@ import com.stocklens.research.dto.RiskResponse;
 import com.stocklens.common.cache.JsonRedisCache;
 import com.stocklens.common.cache.StockLensCacheKeys;
 import com.stocklens.common.cache.StockLensCacheProperties;
+import com.stocklens.research.repository.ComparisonBriefRepository;
+import com.stocklens.research.repository.ComparisonBriefSourceRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -44,18 +46,23 @@ public class ComparisonResearchService {
     private final JsonRedisCache cache;
     private final StockLensCacheKeys cacheKeys;
     private final StockLensCacheProperties cacheProperties;
+    private final ComparisonBriefRepository briefRepository;
+    private final ComparisonBriefSourceRepository sourceRepository;
+    private final tools.jackson.databind.ObjectMapper objectMapper;
 
     public ComparisonResearchService(ComparisonSourceDataLoader sourceLoader,
             ComparisonContextBuilder contextBuilder, AiPromptTemplate promptTemplate,
             ComparisonAiClient aiClient, AiComparisonValidator validator,
             ComparisonInputHashService inputHashService, ComparisonBriefPersistenceService persistenceService,
             AiComparisonProperties properties, Clock clock, JsonRedisCache cache, StockLensCacheKeys cacheKeys,
-            StockLensCacheProperties cacheProperties) {
+            StockLensCacheProperties cacheProperties, ComparisonBriefRepository briefRepository,
+            ComparisonBriefSourceRepository sourceRepository, tools.jackson.databind.ObjectMapper objectMapper) {
         this.sourceLoader = sourceLoader; this.contextBuilder = contextBuilder;
         this.promptTemplate = promptTemplate; this.aiClient = aiClient; this.validator = validator;
         this.inputHashService = inputHashService; this.persistenceService = persistenceService;
         this.properties = properties; this.clock = clock;
         this.cache = cache; this.cacheKeys = cacheKeys; this.cacheProperties = cacheProperties;
+        this.briefRepository = briefRepository; this.sourceRepository = sourceRepository; this.objectMapper = objectMapper;
     }
 
     public ComparisonResearchResponse generate(String rawLeftTicker, String rawRightTicker) {
@@ -69,6 +76,22 @@ public class ComparisonResearchService {
         if (!forceRefresh) {
             var cached = cache.get(cacheKey, ComparisonResearchResponse.class);
             if (cached.isPresent()) return orient(cached.get(), context.leftCompany().getTicker(), context.rightCompany().getTicker(), true);
+            boolean canonical = context.leftCompany().getTicker().compareTo(context.rightCompany().getTicker()) <= 0;
+            var persisted = briefRepository.findFirstByLeftCompany_IdAndRightCompany_IdAndInputHashAndPromptVersionAndModelNameOrderByGeneratedAtDescIdDesc(
+                    canonical ? context.leftCompany().getId() : context.rightCompany().getId(), canonical ? context.rightCompany().getId() : context.leftCompany().getId(),
+                    inputHash, AiPromptTemplate.VERSION, properties.model());
+            if (persisted.isPresent() && persisted.get().getGeneratedAt().isAfter(Instant.now(clock).minus(cacheProperties.briefTtl()))) {
+                try {
+                    var links = sourceRepository.findByComparisonBrief(persisted.get());
+                    List<String> sourceIds = links.stream().map(com.stocklens.research.domain.ComparisonBriefSource::getSourceReference).toList();
+                    if (!context.sourcesById().keySet().containsAll(sourceIds)) throw new IllegalStateException();
+                    var risks = List.of(objectMapper.readValue(persisted.get().getKeyRisksJson(), com.stocklens.research.ai.AiRiskResult[].class));
+                    var result = new AiComparisonResult(persisted.get().getOverallSummary(), objectMapper.readValue(persisted.get().getAdvantagesJson(), com.stocklens.research.ai.AiAdvantages.class), risks, sourceIds);
+                    ComparisonResearchResponse response = response(persisted.get(), context, result);
+                    cache.put(cacheKey, response, cacheProperties.briefTtl());
+                    return orient(response, context.leftCompany().getTicker(), context.rightCompany().getTicker(), true);
+                } catch (Exception exception) { log.warn("Persisted comparison brief could not be safely reused"); }
+            }
         }
         ValidationResult validation = validator.validate(aiClient.generate(promptTemplate.build(context)), context);
         boolean repaired = false;
