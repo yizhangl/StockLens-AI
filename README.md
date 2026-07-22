@@ -1,11 +1,13 @@
 # StockLens AI
 
-StockLens AI compares two public companies in one research dashboard. It combines
-persisted company and market data, financial metrics, historical performance,
-recent news, and a source-grounded AI brief while keeping PostgreSQL as the
-durable source of truth.
+StockLens AI compares two companies in one dashboard. It contains company and market data, 
+financial metrics, historical performance, recent news, and a AI brief (using OpenAI API).
 
-StockLens AI is an educational research tool, not financial advice. It does not
+The working full-stack MVP was completed in four days through a human-in-the-loop
+workflow with **ChatGPT 5.6 Thinking as the product partner** and **Codex as the
+engineering partner**.
+
+Tip: StockLens AI is an educational research tool, not financial advice. It does not
 recommend trades, predict prices, or provide personalized investment guidance.
 
 ## Product Preview
@@ -14,6 +16,58 @@ recommend trades, predict prices, or provide personalized investment guidance.
 ![StockLens AI comparison dashboard](docs/images/stocklens-final-ui2.png)
 ![StockLens AI comparison dashboard](docs/images/stocklens-final-ui3.png)
 ![StockLens AI comparison dashboard](docs/images/stocklens-final-ui4.png)
+
+## Built in Four Days with ChatGPT and Codex
+
+The core application was completed in four days using an AI-assisted,
+milestone-based development process. This was not a one-shot prompt that generated
+the entire project. Each phase moved through product planning, focused
+implementation, automated validation, live testing, and human review.
+
+### ChatGPT 5.6 Thinking — Product Partner
+
+ChatGPT acted as the product and technical planning partner. It helped me:
+
+- Turn the original financial-research idea into a focused MVP
+- Decide which features belonged in the first version
+- Compare architecture, provider, caching, and persistence trade-offs
+- Convert product decisions into the approved [`docs/design.md`](docs/design.md)
+- Break the project into small, testable milestones
+- Write focused Codex implementation prompts with clear acceptance criteria
+- Analyze logs, investigate failures, and narrow bugs into repair tasks
+
+### Codex — Engineering Partner
+
+Codex acted as the repository-level engineering partner. For each milestone, it:
+
+- Read `AGENTS.md`, `docs/design.md`, and the relevant execution plan
+- Implemented focused backend and frontend changes
+- Added unit, integration, and regression tests
+- Ran Maven, npm, lint, type-check, test, and build validation
+- Reported completed work, remaining limitations, and validation results
+- Applied focused fixes after live testing exposed real integration issues
+
+### Human-in-the-Loop Workflow
+
+I remained responsible for the product direction and final decisions. I tested the
+real application, reviewed the UI and behavior, challenged incomplete results,
+selected provider and architecture trade-offs, and decided what ChatGPT and Codex
+should work on next.
+
+```mermaid
+flowchart LR
+    Idea[Personal research problem] --> ChatGPT[ChatGPT 5.6 Thinking<br/>Ideation and product planning]
+    ChatGPT --> Design[design.md and milestone requirements]
+    Design --> Codex[Codex<br/>Repository implementation]
+    Codex --> Validation[Automated tests and diff review]
+    Validation --> Review[Human product review and live testing]
+    Review -->|feedback or bug report| ChatGPT
+    Review -->|approved milestone| Product[Working StockLens AI]
+```
+
+This workflow made it possible to move quickly while still keeping the project
+modular, testable, source-grounded, and reviewable.
+
 
 ## Key Features
 
@@ -290,18 +344,6 @@ npm run build
 
 Automated tests do not call paid or live providers.
 
-## Three-Minute Demo
-
-1. Compare `AAPL` and `MSFT`.
-2. Switch between `PRICE` and `RETURN` and change the period.
-3. Inspect backend-defined metric outcomes and missing-value handling.
-4. Review recent developments and their original links.
-5. Generate the grounded AI brief and open cited news sources.
-6. Generate again to demonstrate cached/persisted reuse.
-7. Refresh provider data and show that AI does not regenerate automatically.
-
-The complete script and screenshot checklist are in
-[`docs/demo.md`](docs/demo.md).
 
 ## Known Limitations
 
@@ -323,5 +365,4 @@ The complete script and screenshot checklist are in
 - [`docs/design.md`](docs/design.md) — approved product and system design
 - [`docs/architecture.md`](docs/architecture.md) — implemented boundaries and flows
 - [`docs/api.md`](docs/api.md) — public REST contracts
-- [`docs/demo.md`](docs/demo.md) — concise interview demo
 - [`.agent/plans/`](.agent/plans/) — milestone execution records
